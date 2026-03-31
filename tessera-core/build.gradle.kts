@@ -6,6 +6,10 @@ plugins {
 }
 
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     androidTarget {
         compilations.all {
             compileTaskProvider.configure {
@@ -16,17 +20,22 @@ kotlin {
         }
     }
 
-    // iOS targets — compile-only for now, no iosMain implementations yet (Phase 3)
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "TesseraCore"
+            isStatic = true
+        }
+    }
 
     // Desktop target (Phase 4)
     // jvm("desktop")
 
     sourceSets {
         commonMain.dependencies {
+            implementation(compose.foundation)
             implementation(compose.ui)
+            implementation(compose.runtime)
+            implementation(compose.material3)
             implementation(libs.coroutines.core)
         }
 
@@ -36,9 +45,6 @@ kotlin {
         }
 
         androidMain.dependencies {
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.runtime)
             implementation(libs.coroutines.android)
             implementation(libs.androidx.core)
             implementation(libs.compose.ui.tooling.preview)

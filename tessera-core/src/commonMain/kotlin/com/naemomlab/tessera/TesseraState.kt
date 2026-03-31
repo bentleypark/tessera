@@ -6,9 +6,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
-import timber.log.Timber
-import java.io.File
-import java.io.InputStream
+import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -17,12 +15,15 @@ import kotlin.coroutines.cancellation.CancellationException
 @Stable
 class TesseraState(
     private val imageSource: ImageSource,
-    private val tempFileProvider: (String, InputStream) -> File,
-    private val decoderFactory: (ImageSource, (String, InputStream) -> File) -> RegionDecoder = ::ImageDecoder,
+    private val decoderFactory: (ImageSource) -> RegionDecoder,
     private val maxCacheSize: Int = 150
 ) {
+    @Volatile
     private var decoder: RegionDecoder? = null
+    @Volatile
     private var tileManager: TileManager? = null
+    @Volatile
+    private var disposed = false
     private val tileCache = mutableStateMapOf<String, Pair<ImageBitmap, TileCoordinate>>()
     private val tileCacheAccessOrder = mutableListOf<String>()
 
@@ -42,7 +43,7 @@ class TesseraState(
             isLoading = true
             error = null
 
-            val regionDecoder = decoderFactory(imageSource, tempFileProvider)
+            val regionDecoder = decoderFactory(imageSource)
             regionDecoder.initialize()
             decoder = regionDecoder
 
@@ -59,8 +60,8 @@ class TesseraState(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.e(e, "TesseraState initialize failed")
-            error = "${e.javaClass.simpleName}: ${e.message ?: "Unknown error"}"
+            logError("TesseraState", "initialize failed", e)
+            error = "${e.simpleClassName()}: ${e.message ?: "Unknown error"}"
             isLoading = false
         }
     }
@@ -95,6 +96,7 @@ class TesseraState(
             return it.first
         }
 
+        if (disposed) return null
         val regionDecoder = decoder ?: return null
         val manager = tileManager ?: return null
 
@@ -121,6 +123,7 @@ class TesseraState(
     }
 
     fun dispose() {
+        disposed = true
         decoder?.close()
         decoder = null
         tileCache.clear()

@@ -10,3 +10,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+iosApp/DerivedData/
+iosApp/iosApp.xcodeproj/

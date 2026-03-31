@@ -6,7 +6,6 @@ import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
-import timber.log.Timber
 import java.io.File
 import java.io.InputStream
 
@@ -69,7 +68,7 @@ class ImageDecoder(
             val androidRect = Rect(rect.left, rect.top, rect.right, rect.bottom)
             currentDecoder.decodeRegion(androidRect, options)?.asImageBitmap()
         } catch (e: Exception) {
-            Timber.e(e, "decodeTile failed: rect=$rect sampleSize=$sampleSize")
+            logError("ImageDecoder", "decodeTile failed: rect=$rect sampleSize=$sampleSize", e)
             null
         }
     }
@@ -98,7 +97,7 @@ class ImageDecoder(
             }
             preview?.asImageBitmap()
         } catch (e: Exception) {
-            Timber.e(e, "decodePreview failed: maxSize=$maxSize")
+            logError("ImageDecoder", "decodePreview failed: maxSize=$maxSize", e)
             null
         }
     }
@@ -151,7 +150,7 @@ class ImageDecoder(
                 }
             }
         } catch (e: Exception) {
-            Timber.w(e, "createRegionDecoder failed")
+            logWarning("ImageDecoder", "createRegionDecoder failed", e)
             null
         }
     }
@@ -174,7 +173,7 @@ class ImageDecoder(
                 BitmapRegionDecoder.newInstance(stream, false)
             }
         } catch (e: Exception) {
-            Timber.w(e, "createRegionDecoderFromDescriptor failed")
+            logWarning("ImageDecoder", "createRegionDecoderFromDescriptor failed", e)
             null
         }
     }
