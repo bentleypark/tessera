@@ -1,0 +1,52 @@
+[versions]
+kotlin = "2.3.0"
+compose-bom = "2026.03.00"
+compose-activity = "1.13.0"
+coroutines = "1.10.2"
+glide = "5.0.5"
+compileSdk = "36"
+minSdk = "28"
+targetSdk = "36"
+agp = "9.1.0"
+
+[libraries]
+# Compose
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+compose-activity = { group = "androidx.activity", name = "activity-compose", version.ref = "compose-activity" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+
+# AndroidX
+androidx-core = { group = "androidx.core", name = "core-ktx", version = "1.18.0" }
+
+# Coroutines
+coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# Image Loading
+glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
+coil = { group = "io.coil-kt.coil3", name = "coil-compose", version = "3.4.0" }
+coil-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version = "3.4.0" }
+
+# Logging
+timber = { group = "com.jakewharton.timber", name = "timber", version = "5.0.1" }
+
+# Testing
+junit = { group = "junit", name = "junit", version = "4.13.2" }
+androidx-test-junit = { group = "androidx.test.ext", name = "junit", version = "1.3.0" }
+androidx-test-espresso = { group = "androidx.test.espresso", name = "espresso-core", version = "3.7.0" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+[bundles]
+compose = ["compose-foundation", "compose-ui", "compose-ui-tooling-preview", "compose-material3"]
+android-testing = ["androidx-test-junit", "androidx-test-espresso"]
