@@ -1,8 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
+@Suppress("DEPRECATION")
 android {
     namespace = "com.naemomlab.tessera.sample"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -26,26 +28,26 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
-        }
-    }
-
     buildFeatures {
         compose = true
     }
 }
 
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    }
+}
+
 dependencies {
-    implementation(project(":tessera"))
+    implementation(project(":tessera-core"))
 
     // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
     implementation(libs.compose.activity)
 
-    // Image loaders (tessera에서 compileOnly이므로 sample에서 제공)
+    // Image loaders (tessera uses compileOnly, sample provides runtime)
     implementation(libs.glide)
     implementation(libs.coil)
     implementation(libs.coil.okhttp)
