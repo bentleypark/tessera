@@ -41,14 +41,13 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 dependencies {
     implementation(project(":tessera-core"))
-    implementation(project(":tessera-glide"))
 
     // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
     implementation(libs.compose.activity)
 
-    // Image loaders
+    // Image loader (Coil for network images)
     implementation(libs.coil)
     implementation(libs.coil.okhttp)
 
