@@ -107,6 +107,7 @@ class TesseraState(
             if (cache) {
                 evictLRUIfNeeded()
                 tileCache[key] = it to coordinate
+                updateAccessOrder(key)
             }
         }
     }

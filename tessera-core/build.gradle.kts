@@ -44,6 +44,13 @@ kotlin {
             implementation(libs.coroutines.test)
         }
 
+        val androidUnitTest by getting {
+            dependencies {
+                implementation(libs.robolectric)
+                implementation(libs.timber)
+            }
+        }
+
         androidMain.dependencies {
             implementation(libs.coroutines.android)
             implementation(libs.androidx.core)
