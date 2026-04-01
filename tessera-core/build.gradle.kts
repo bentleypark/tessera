@@ -59,7 +59,6 @@ kotlin {
             implementation(libs.coroutines.android)
             implementation(libs.androidx.core)
             implementation(libs.compose.ui.tooling.preview)
-            compileOnly(libs.coil)
             compileOnly(libs.timber)
         }
     }

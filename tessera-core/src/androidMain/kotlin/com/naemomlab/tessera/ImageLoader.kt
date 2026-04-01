@@ -6,48 +6,43 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Coil-based image loader.
- * Uses the app's singleton ImageLoader which includes the OkHttp network fetcher.
+ * Network image loader that downloads images to a temp file.
+ * No external dependencies required — uses standard java.net.URL.
  */
-class CoilImageLoader(private val context: Context) : ImageLoaderStrategy {
-
-    private val imageLoader: coil3.ImageLoader
-        get() = coil3.SingletonImageLoader.get(context)
+class NetworkImageLoader(private val context: Context) : ImageLoaderStrategy {
 
     override suspend fun loadImageSource(
         imageUrl: String
     ): Result<ImageSource> = withContext(Dispatchers.IO) {
         try {
-            val loader = imageLoader
-            val request = coil3.request.ImageRequest.Builder(context)
-                .data(imageUrl)
-                .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
-                .build()
+            val safeName = imageUrl.hashCode().toString()
+            val tempFile = java.io.File(context.cacheDir, "tessera_$safeName")
 
-            val result = loader.execute(request)
-
-            if (result is coil3.request.SuccessResult) {
-                val diskCache = loader.diskCache
-                if (diskCache != null) {
-                    val snapshot = diskCache.openSnapshot(imageUrl)
-                    snapshot?.use {
-                        val file = it.data.toFile()
-                        return@withContext Result.success(ImageSource.FileSource(file))
+            if (!tempFile.exists() || tempFile.length() == 0L) {
+                val connection = java.net.URL(imageUrl).openConnection().apply {
+                    connectTimeout = 15_000
+                    readTimeout = 30_000
+                }
+                connection.getInputStream().use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
                     }
                 }
             }
 
-            Result.failure(Exception("Failed to load image with Coil"))
+            Result.success(ImageSource.FileSource(tempFile))
         } catch (e: Exception) {
-            e.printStackTrace()
+            logError("NetworkImageLoader", "Failed to download: $imageUrl", e)
             Result.failure(e)
         }
     }
 
-    override suspend fun clearCache(): Unit = withContext(Dispatchers.IO) {
-        val loader = imageLoader
-        loader.diskCache?.clear()
-        loader.memoryCache?.clear()
+    override suspend fun clearCache() = withContext(Dispatchers.IO) {
+        context.cacheDir.listFiles()?.forEach { file ->
+            if (file.name.startsWith("tessera_")) {
+                file.delete()
+            }
+        }
     }
 }
 
@@ -93,17 +88,17 @@ class RoutingImageLoader(
 ) : ImageLoaderStrategy {
 
     /**
-     * Convenience constructor using Coil for network and resource loading.
+     * Convenience constructor using NetworkImageLoader for network images.
      * For local file/content URI support, add tessera-glide and pass a GlideImageLoader as [local].
      */
     constructor(context: Context) : this(
-        network = CoilImageLoader(context),
+        network = NetworkImageLoader(context),
         local = null,
         resource = ResourceImageLoader(context)
     )
 
     constructor(context: Context, local: ImageLoaderStrategy) : this(
-        network = CoilImageLoader(context),
+        network = NetworkImageLoader(context),
         local = local,
         resource = ResourceImageLoader(context)
     )

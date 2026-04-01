@@ -47,10 +47,6 @@ dependencies {
     implementation(libs.bundles.compose)
     implementation(libs.compose.activity)
 
-    // Image loader (Coil for network images)
-    implementation(libs.coil)
-    implementation(libs.coil.okhttp)
-
     // Logging
     implementation(libs.timber)
 
