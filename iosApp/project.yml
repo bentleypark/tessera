@@ -2,7 +2,7 @@ name: iosApp
 options:
   bundleIdPrefix: com.naemomlab.tessera
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "15.0"
 
 settings:
   base:
