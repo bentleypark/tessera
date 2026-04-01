@@ -27,6 +27,9 @@ jobs:
       - name: Build tessera-core
         run: ./gradlew :tessera-core:assembleDebug
 
+      - name: Build tessera-glide
+        run: ./gradlew :tessera-glide:assembleDebug
+
       - name: Run common tests
         run: ./gradlew :tessera-core:testDebugUnitTest
 

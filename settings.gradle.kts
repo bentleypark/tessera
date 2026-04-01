@@ -16,4 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Tessera"
 include(":tessera-core")
+include(":tessera-glide")
 include(":sample")

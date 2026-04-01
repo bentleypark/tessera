@@ -6,32 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Glide-based image loader.
- */
-class GlideImageLoader(private val context: Context) : ImageLoaderStrategy {
-    override suspend fun loadImageSource(
-        imageUrl: String
-    ): Result<ImageSource> = withContext(Dispatchers.IO) {
-        try {
-            val file = com.bumptech.glide.Glide.with(context)
-                .asFile()
-                .load(imageUrl)
-                .submit()
-                .get()
-
-            Result.success(ImageSource.FileSource(file))
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun clearCache() = withContext(Dispatchers.IO) {
-        com.bumptech.glide.Glide.get(context).clearDiskCache()
-    }
-}
-
-/**
  * Coil-based image loader.
  */
 class CoilImageLoader(private val context: Context) : ImageLoaderStrategy {
@@ -101,20 +75,31 @@ class ResourceImageLoader(private val context: Context) : ImageLoaderStrategy {
 
 /**
  * Routes image loading based on URI scheme.
- * - http/https -> Coil (network images with disk caching)
+ * - http/https -> primary network loader (Coil by default)
  * - android.resource -> Resource (app bundled images)
- * - file/content -> Glide (local files, gallery images)
- * - unknown scheme -> Glide (fallback)
+ * - file/content/other -> fallback loader
+ *
+ * If no fallback is provided, the network loader handles all schemes.
  */
 class RoutingImageLoader(
-    private val coil: ImageLoaderStrategy,
-    private val glide: ImageLoaderStrategy,
+    private val network: ImageLoaderStrategy,
+    private val local: ImageLoaderStrategy? = null,
     private val resource: ImageLoaderStrategy
 ) : ImageLoaderStrategy {
 
+    /**
+     * Convenience constructor using Coil for network and resource loading.
+     * For local file/content URI support, add tessera-glide and pass a GlideImageLoader as [local].
+     */
     constructor(context: Context) : this(
-        coil = CoilImageLoader(context),
-        glide = GlideImageLoader(context),
+        network = CoilImageLoader(context),
+        local = null,
+        resource = ResourceImageLoader(context)
+    )
+
+    constructor(context: Context, local: ImageLoaderStrategy) : this(
+        network = CoilImageLoader(context),
+        local = local,
         resource = ResourceImageLoader(context)
     )
 
@@ -127,23 +112,23 @@ class RoutingImageLoader(
             null
         }
         val primary = when (scheme) {
-            "http", "https" -> coil
+            "http", "https" -> network
             "android.resource" -> resource
-            "file", "content" -> glide
-            else -> glide
+            "file", "content" -> local ?: network
+            else -> local ?: network
         }
         val result = primary.loadImageSource(imageUrl)
         if (result.isSuccess) return result
 
-        // Coil 실패 시 Glide로 fallback (네트워크 이미지)
-        if (primary === coil) {
-            return glide.loadImageSource(imageUrl)
+        // Network loader failure → fallback to local loader
+        if (primary === network && local != null) {
+            return local.loadImageSource(imageUrl)
         }
         return result
     }
 
     override suspend fun clearCache() {
-        coil.clearCache()
-        glide.clearCache()
+        network.clearCache()
+        local?.clearCache()
     }
 }
