@@ -38,41 +38,63 @@ class TesseraState(
     var previewBitmap by mutableStateOf<ImageBitmap?>(null)
         private set
 
-    fun initialize() {
-        try {
-            isLoading = true
-            error = null
-
-            val initStart = currentTimeMillis()
-
+    /**
+     * Heavy initialization (file I/O + Skia decode). Safe to call from any thread.
+     * Sets decoder and tileManager internally. Call [applyInitResult] on the main thread afterward
+     * to update Compose state.
+     */
+    internal fun initializeDecoder(): InitResult {
+        val initStart = currentTimeMillis()
+        return try {
             val regionDecoder = decoderFactory(imageSource)
             regionDecoder.initialize()
-            decoder = regionDecoder
-
             val info = regionDecoder.imageInfo
-            imageInfo = info
             val decoderTime = currentTimeMillis() - initStart
 
-            val previewStart = currentTimeMillis()
-            regionDecoder.decodePreview(maxSize = 1024)?.let {
-                previewBitmap = it
-            }
-            val previewTime = currentTimeMillis() - previewStart
-
+            decoder = regionDecoder
             tileManager = TileManager(info)
+
+            val previewStart = currentTimeMillis()
+            val preview = regionDecoder.decodePreview(maxSize = 1024)
+            val previewTime = currentTimeMillis() - previewStart
 
             val totalTime = currentTimeMillis() - initStart
             logWarning("TesseraPerf", "init: ${info.width}x${info.height} " +
                 "decoder=${decoderTime}ms preview=${previewTime}ms total=${totalTime}ms")
 
-            isLoading = false
+            InitResult.Success(info, preview)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             logError("TesseraState", "initialize failed", e)
-            error = "${e.simpleClassName()}: ${e.message ?: "Unknown error"}"
-            isLoading = false
+            InitResult.Error("${e.simpleClassName()}: ${e.message ?: "Unknown error"}")
         }
+    }
+
+    /** Apply decode results to Compose state. Must be called on the main thread. */
+    internal fun applyInitResult(result: InitResult) {
+        when (result) {
+            is InitResult.Success -> {
+                error = null
+                imageInfo = result.info
+                previewBitmap = result.preview
+                isLoading = false
+            }
+            is InitResult.Error -> {
+                decoder = null
+                tileManager = null
+                error = result.message
+                isLoading = false
+            }
+        }
+    }
+
+    internal sealed class InitResult {
+        class Success(
+            val info: ImageInfo,
+            val preview: ImageBitmap?
+        ) : InitResult()
+        class Error(val message: String) : InitResult()
     }
 
     fun updateViewport(newViewport: Viewport) {
@@ -99,32 +121,48 @@ class TesseraState(
         tileCacheAccessOrder.add(key)
     }
 
-    fun loadTile(coordinate: TileCoordinate, cache: Boolean = true): ImageBitmap? {
-        val key = coordinate.toKey()
-        tileCache[key]?.let {
-            return it.first
+    /** Decode tile without touching Compose state. Safe to call from any thread. */
+    fun decodeTile(coordinate: TileCoordinate): ImageBitmap? {
+        if (disposed) {
+            logWarning("TesseraState", "decodeTile called after dispose: ${coordinate.toKey()}")
+            return null
         }
-
-        if (disposed) return null
-        val regionDecoder = decoder ?: return null
-        val manager = tileManager ?: return null
+        val regionDecoder = decoder ?: run {
+            logWarning("TesseraState", "decodeTile: decoder is null for ${coordinate.toKey()}")
+            return null
+        }
+        val manager = tileManager ?: run {
+            logWarning("TesseraState", "decodeTile: tileManager is null for ${coordinate.toKey()}")
+            return null
+        }
 
         val rect = manager.getTileRect(coordinate)
         val sampleSize = manager.calculateSampleSize(coordinate.zoomLevel)
 
+        val tileKey = coordinate.toKey()
         val tileStart = currentTimeMillis()
         return regionDecoder.decodeTile(rect, sampleSize)?.also {
             val tileTime = currentTimeMillis() - tileStart
             if (tileTime > 50) {
-                logWarning("TesseraPerf", "slowTile: $key ${tileTime}ms " +
+                logWarning("TesseraPerf", "slowTile: $tileKey ${tileTime}ms " +
                     "rect=${rect.right - rect.left}x${rect.bottom - rect.top} sample=$sampleSize")
             }
-            if (cache) {
-                evictLRUIfNeeded()
-                tileCache[key] = it to coordinate
-                updateAccessOrder(key)
-            }
         }
+    }
+
+    /** Decode + cache in one call. Must be called on the main thread (writes Compose state). */
+    fun loadTile(coordinate: TileCoordinate, cache: Boolean = true): ImageBitmap? {
+        val bitmap = decodeTile(coordinate) ?: return null
+        if (cache) cacheTile(coordinate, bitmap)
+        return bitmap
+    }
+
+    /** Cache a decoded tile. Must be called on the main thread. */
+    fun cacheTile(coordinate: TileCoordinate, bitmap: ImageBitmap) {
+        val key = coordinate.toKey()
+        evictLRUIfNeeded()
+        tileCache[key] = bitmap to coordinate
+        updateAccessOrder(key)
     }
 
     private fun evictLRUIfNeeded() {

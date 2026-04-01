@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.ComposeUIViewController
 
 private data class TestImage(
@@ -36,24 +37,24 @@ private data class TestImage(
 
 private val testImages = listOf(
     TestImage(
-        label = "1280px",
-        description = "Small (1280x1024)",
-        url = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg"
+        label = "Small",
+        description = "1280px (~600KB, ~5MB decoded)",
+        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1280&q=80"
+    ),
+    TestImage(
+        label = "2K",
+        description = "2048px (~1.3MB, ~13MB decoded)",
+        url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2048&q=80"
     ),
     TestImage(
         label = "4K",
-        description = "4K (3840x2160)",
-        url = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Pizigani_1367_Chart_1MB.jpg/3840px-Pizigani_1367_Chart_1MB.jpg"
+        description = "3840px (~1.5MB, ~37MB decoded)",
+        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=3840&q=80"
     ),
     TestImage(
-        label = "8K",
-        description = "8K (7087x4724)",
-        url = "https://upload.wikimedia.org/wikipedia/commons/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg"
-    ),
-    TestImage(
-        label = "Large",
-        description = "Large (9862x6622)",
-        url = "https://upload.wikimedia.org/wikipedia/commons/2/2c/Pieter_Bruegel_the_Elder_-_The_Tower_of_Babel_%28Vienna%29_-_Google_Art_Project.jpg"
+        label = "6K",
+        description = "6000px (~4MB, ~96MB decoded)",
+        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=6000&q=90"
     )
 )
 
@@ -83,7 +84,25 @@ private fun SampleContent() {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 60.dp)
+                    .zIndex(1f)
             )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, top = 4.dp)
+                    .zIndex(2f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { selectedImage = null }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "< Back",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     } else {
         ImageSelectionScreen(onSelect = { selectedImage = it })

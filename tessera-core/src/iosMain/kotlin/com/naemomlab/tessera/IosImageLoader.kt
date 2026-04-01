@@ -1,9 +1,13 @@
 package com.naemomlab.tessera
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.convert
+import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSData
+import platform.CoreCrypto.CC_SHA256
+import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSTemporaryDirectory
@@ -96,7 +100,7 @@ class IosImageLoader : ImageLoaderStrategy {
                     return@dataTaskWithRequest
                 }
 
-                val safeName = imageUrl.hashCode().toString()
+                val safeName = sha256(imageUrl)
                 val tempPath = NSTemporaryDirectory() + "tessera_$safeName"
                 val success = data.writeToFile(tempPath, atomically = true)
 
@@ -110,5 +114,17 @@ class IosImageLoader : ImageLoaderStrategy {
             task.resume()
             continuation.invokeOnCancellation { task.cancel() }
         }
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    private fun sha256(input: String): String {
+        val data = input.encodeToByteArray()
+        val digest = UByteArray(CC_SHA256_DIGEST_LENGTH)
+        data.usePinned { pinned ->
+            digest.usePinned { digestPinned ->
+                CC_SHA256(pinned.addressOf(0), data.size.convert(), digestPinned.addressOf(0))
+            }
+        }
+        return digest.joinToString("") { it.toString(16).padStart(2, '0') }
     }
 }

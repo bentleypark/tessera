@@ -17,6 +17,11 @@ internal expect fun Throwable.simpleClassName(): String
 internal expect fun currentTimeMillis(): Long
 
 /**
- * IO dispatcher for background work.
+ * IO dispatcher for tile loading.
  */
 internal expect val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
+
+/**
+ * Dispatcher for image download and decode (separate from tile loading to prevent starvation).
+ */
+internal expect val imageLoadDispatcher: kotlinx.coroutines.CoroutineDispatcher

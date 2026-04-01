@@ -11,7 +11,7 @@ internal actual fun logError(tag: String, message: String, throwable: Throwable?
 
 internal actual fun logWarning(tag: String, message: String, throwable: Throwable?) {
     val warnMsg = if (throwable != null) "$message: ${throwable.message}" else message
-    NSLog("WARN [$tag] %@", warnMsg)
+    println("WARN [$tag] $warnMsg")
 }
 
 internal actual fun Throwable.simpleClassName(): String {
@@ -21,3 +21,5 @@ internal actual fun Throwable.simpleClassName(): String {
 internal actual fun currentTimeMillis(): Long = (NSDate().timeIntervalSince1970 * 1000).toLong()
 
 internal actual val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default
+
+internal actual val imageLoadDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default

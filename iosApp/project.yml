@@ -16,13 +16,21 @@ targets:
       - iosApp
     info:
       path: iosApp/Info.plist
+      properties:
+        CADisableMinimumFrameDurationOnPhone: true
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.naemomlab.tessera.iosApp
+        PRODUCT_BUNDLE_IDENTIFIER: com.bentley.tessera.sample
         INFOPLIST_FILE: iosApp/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: Z2392B3AD7
         FRAMEWORK_SEARCH_PATHS:
           - "$(SRCROOT)/../tessera-core/build/bin/currentFramework"
         OTHER_LINKER_FLAGS: "-ObjC"
+        ENABLE_BITCODE: "NO"
+        STRIP_BITCODE_FROM_COPIED_FILES: "NO"
     dependencies:
       - framework: "../tessera-core/build/bin/currentFramework/TesseraCore.framework"
         embed: true

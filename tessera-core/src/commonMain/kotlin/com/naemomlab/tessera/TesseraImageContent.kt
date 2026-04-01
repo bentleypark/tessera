@@ -32,10 +32,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -101,16 +101,20 @@ internal fun TesseraImageContent(
             isDismissing = false
             previousState?.dispose()
 
-            val result = withContext(ioDispatcher) {
+            val result = withContext(imageLoadDispatcher) {
                 imageLoader.loadImageSource(imageUrl)
             }
-            val state = result.getOrNull()?.let { source ->
-                withContext(ioDispatcher) {
-                    TesseraState(source, decoderFactory).also { it.initialize() }
+            val source = result.getOrNull()
+            if (source != null) {
+                val state = TesseraState(source, decoderFactory)
+                val initResult = withContext(imageLoadDispatcher) {
+                    state.initializeDecoder()
                 }
-            }
-            if (state != null) {
-                tesseraState = state
+                state.applyInitResult(initResult)
+                when (initResult) {
+                    is TesseraState.InitResult.Success -> tesseraState = state
+                    is TesseraState.InitResult.Error -> loadError = initResult.message
+                }
             } else {
                 loadError = result.exceptionOrNull()?.message ?: "Failed to load image"
             }
@@ -167,26 +171,43 @@ internal fun TesseraImageContent(
                     dx * dx + dy * dy
                 }
 
-                withContext(ioDispatcher) {
-                    sortedTiles.chunked(8).forEach { batch ->
-                        if (isDismissing) return@withContext
+                val batchStart = currentTimeMillis()
+                var loadedCount = 0
+                var failCount = 0
 
-                        val loadedKeys = batch.map { coordinate ->
-                            async {
-                                if (isDismissing) return@async null
+                sortedTiles.forEach { coordinate ->
+                    ensureActive()
 
-                                val key = coordinate.toKey()
-                                state.loadTile(coordinate, cache = true)
-                                key to coordinate.zoomLevel
-                            }
-                        }.awaitAll().filterNotNull()
-
-                        val loadTime = currentTimeMillis()
-                        loadedTiles = loadedTiles + loadedKeys.associate { (key, zoomLevel) ->
-                            key to TileLoadInfo(loadTime, zoomLevel)
+                    val key = coordinate.toKey()
+                    try {
+                        val bitmap = withContext(ioDispatcher) {
+                            state.decodeTile(coordinate)
                         }
-                        kotlinx.coroutines.yield()
+
+                        if (bitmap != null) {
+                            state.cacheTile(coordinate, bitmap)
+                            val loadTime = currentTimeMillis()
+                            loadedTiles = loadedTiles + (key to TileLoadInfo(loadTime, coordinate.zoomLevel))
+                            loadedCount++
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        logError("TesseraImage", "tile decode failed: $key", e)
+                        failCount++
                     }
+                    yield()
+                }
+
+                if (failCount > 0 && loadedCount == 0) {
+                    logError("TesseraImage", "All $failCount tiles failed to decode")
+                }
+
+                val batchTime = currentTimeMillis() - batchStart
+                if (loadedCount > 0) {
+                    logWarning("TesseraPerf", "tiles: loaded=$loadedCount " +
+                        "total=${batchTime}ms avg=${batchTime / loadedCount}ms " +
+                        "zoom=$newZoomLevel")
                 }
             }
     }

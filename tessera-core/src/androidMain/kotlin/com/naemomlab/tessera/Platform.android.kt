@@ -23,3 +23,4 @@ internal actual fun Throwable.simpleClassName(): String = this.javaClass.simpleN
 internal actual fun currentTimeMillis(): Long = System.currentTimeMillis()
 
 internal actual val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO
+internal actual val imageLoadDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO
