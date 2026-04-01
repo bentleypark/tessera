@@ -37,12 +37,13 @@ class NetworkImageLoader(private val context: Context) : ImageLoaderStrategy {
         }
     }
 
-    override suspend fun clearCache() = withContext(Dispatchers.IO) {
+    override suspend fun clearCache(): Unit = withContext(Dispatchers.IO) {
         context.cacheDir.listFiles()?.forEach { file ->
             if (file.name.startsWith("tessera_")) {
                 file.delete()
             }
         }
+        Unit
     }
 }
 
