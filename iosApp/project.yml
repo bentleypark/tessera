@@ -21,19 +21,22 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.naemomlab.tessera.iosApp
         INFOPLIST_FILE: iosApp/Info.plist
         FRAMEWORK_SEARCH_PATHS:
-          - "$(SRCROOT)/../tessera-core/build/bin/iosSimulatorArm64/debugFramework"
-          - "$(SRCROOT)/../tessera-core/build/bin/iosArm64/debugFramework"
+          - "$(SRCROOT)/../tessera-core/build/bin/currentFramework"
         OTHER_LINKER_FLAGS: "-ObjC"
     dependencies:
-      - framework: "../tessera-core/build/bin/iosSimulatorArm64/debugFramework/TesseraCore.framework"
+      - framework: "../tessera-core/build/bin/currentFramework/TesseraCore.framework"
         embed: true
     preBuildScripts:
       - name: "Build KMP Framework"
         script: |
           cd "$SRCROOT/.."
+          FRAMEWORK_DIR="tessera-core/build/bin/currentFramework"
+          rm -f "$FRAMEWORK_DIR"
           if [ "${PLATFORM_NAME}" = "iphonesimulator" ]; then
             ./gradlew :tessera-core:linkDebugFrameworkIosSimulatorArm64
+            ln -sf "$(pwd)/tessera-core/build/bin/iosSimulatorArm64/debugFramework" "$FRAMEWORK_DIR"
           else
             ./gradlew :tessera-core:linkDebugFrameworkIosArm64
+            ln -sf "$(pwd)/tessera-core/build/bin/iosArm64/debugFramework" "$FRAMEWORK_DIR"
           fi
         basedOnDependencyAnalysis: false

@@ -12,3 +12,4 @@
 local.properties
 iosApp/DerivedData/
 iosApp/iosApp.xcodeproj/
+tessera-core/build/bin/currentFramework
