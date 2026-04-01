@@ -3,7 +3,11 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
+    `maven-publish`
 }
+
+group = "com.github.bentleypark.tessera"
+version = "0.1.0"
 
 kotlin {
     compilerOptions {
@@ -74,5 +78,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 }
