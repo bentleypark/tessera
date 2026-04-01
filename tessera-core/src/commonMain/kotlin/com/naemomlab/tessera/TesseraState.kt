@@ -43,18 +43,27 @@ class TesseraState(
             isLoading = true
             error = null
 
+            val initStart = currentTimeMillis()
+
             val regionDecoder = decoderFactory(imageSource)
             regionDecoder.initialize()
             decoder = regionDecoder
 
             val info = regionDecoder.imageInfo
             imageInfo = info
+            val decoderTime = currentTimeMillis() - initStart
 
+            val previewStart = currentTimeMillis()
             regionDecoder.decodePreview(maxSize = 1024)?.let {
                 previewBitmap = it
             }
+            val previewTime = currentTimeMillis() - previewStart
 
             tileManager = TileManager(info)
+
+            val totalTime = currentTimeMillis() - initStart
+            logWarning("TesseraPerf", "init: ${info.width}x${info.height} " +
+                "decoder=${decoderTime}ms preview=${previewTime}ms total=${totalTime}ms")
 
             isLoading = false
         } catch (e: CancellationException) {
@@ -103,7 +112,13 @@ class TesseraState(
         val rect = manager.getTileRect(coordinate)
         val sampleSize = manager.calculateSampleSize(coordinate.zoomLevel)
 
+        val tileStart = currentTimeMillis()
         return regionDecoder.decodeTile(rect, sampleSize)?.also {
+            val tileTime = currentTimeMillis() - tileStart
+            if (tileTime > 50) {
+                logWarning("TesseraPerf", "slowTile: $key ${tileTime}ms " +
+                    "rect=${rect.right - rect.left}x${rect.bottom - rect.top} sample=$sampleSize")
+            }
             if (cache) {
                 evictLRUIfNeeded()
                 tileCache[key] = it to coordinate
