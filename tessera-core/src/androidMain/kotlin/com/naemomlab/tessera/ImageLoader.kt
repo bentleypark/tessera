@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Network image loader that downloads images to a temp file.
@@ -15,22 +16,30 @@ class NetworkImageLoader(private val context: Context) : ImageLoaderStrategy {
         imageUrl: String
     ): Result<ImageSource> = withContext(Dispatchers.IO) {
         try {
-            val safeName = imageUrl.hashCode().toString()
+            val safeName = sha256(imageUrl)
             val tempFile = java.io.File(context.cacheDir, "tessera_$safeName")
 
             if (!tempFile.exists() || tempFile.length() == 0L) {
-                val connection = java.net.URL(imageUrl).openConnection().apply {
-                    connectTimeout = 15_000
-                    readTimeout = 30_000
-                }
-                connection.getInputStream().use { input ->
-                    tempFile.outputStream().use { output ->
-                        input.copyTo(output)
+                val stagingFile = java.io.File(context.cacheDir, "tessera_${safeName}.tmp")
+                try {
+                    val connection = java.net.URL(imageUrl).openConnection().apply {
+                        connectTimeout = 15_000
+                        readTimeout = 30_000
                     }
+                    connection.getInputStream().use { input ->
+                        stagingFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    stagingFile.renameTo(tempFile)
+                } finally {
+                    stagingFile.delete()
                 }
             }
 
             Result.success(ImageSource.FileSource(tempFile))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logError("NetworkImageLoader", "Failed to download: $imageUrl", e)
             Result.failure(e)
@@ -44,6 +53,12 @@ class NetworkImageLoader(private val context: Context) : ImageLoaderStrategy {
             }
         }
         Unit
+    }
+
+    private fun sha256(input: String): String {
+        return java.security.MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray())
+            .joinToString("") { "%02x".format(it) }
     }
 }
 
@@ -65,8 +80,10 @@ class ResourceImageLoader(private val context: Context) : ImageLoaderStrategy {
                     description = imageUrl
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            e.printStackTrace()
+            logError("ResourceImageLoader", "Failed to load resource: $imageUrl", e)
             Result.failure(e)
         }
     }
@@ -76,11 +93,11 @@ class ResourceImageLoader(private val context: Context) : ImageLoaderStrategy {
 
 /**
  * Routes image loading based on URI scheme.
- * - http/https -> primary network loader (Coil by default)
- * - android.resource -> Resource (app bundled images)
- * - file/content/other -> fallback loader
+ * - http/https -> NetworkImageLoader (default)
+ * - android.resource -> ResourceImageLoader (app bundled images)
+ * - file/content/other -> local loader (e.g. GlideImageLoader from tessera-glide)
  *
- * If no fallback is provided, the network loader handles all schemes.
+ * If no local loader is provided, the network loader handles all schemes.
  */
 class RoutingImageLoader(
     private val network: ImageLoaderStrategy,
@@ -109,7 +126,8 @@ class RoutingImageLoader(
     ): Result<ImageSource> {
         val scheme = try {
             imageUrl.toUri().scheme?.lowercase()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logWarning("RoutingImageLoader", "Failed to parse URI: $imageUrl", e)
             null
         }
         val primary = when (scheme) {
@@ -123,6 +141,7 @@ class RoutingImageLoader(
 
         // Network loader failure → fallback to local loader
         if (primary === network && local != null) {
+            logWarning("RoutingImageLoader", "Primary loader failed, falling back to local", result.exceptionOrNull())
             return local.loadImageSource(imageUrl)
         }
         return result
