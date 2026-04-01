@@ -7,22 +7,27 @@ import kotlinx.coroutines.withContext
 
 /**
  * Coil-based image loader.
+ * Uses the app's singleton ImageLoader which includes the OkHttp network fetcher.
  */
 class CoilImageLoader(private val context: Context) : ImageLoaderStrategy {
+
+    private val imageLoader: coil3.ImageLoader
+        get() = coil3.SingletonImageLoader.get(context)
+
     override suspend fun loadImageSource(
         imageUrl: String
     ): Result<ImageSource> = withContext(Dispatchers.IO) {
         try {
-            val imageLoader = coil3.ImageLoader(context)
+            val loader = imageLoader
             val request = coil3.request.ImageRequest.Builder(context)
                 .data(imageUrl)
                 .diskCachePolicy(coil3.request.CachePolicy.ENABLED)
                 .build()
 
-            val result = imageLoader.execute(request)
+            val result = loader.execute(request)
 
             if (result is coil3.request.SuccessResult) {
-                val diskCache = imageLoader.diskCache
+                val diskCache = loader.diskCache
                 if (diskCache != null) {
                     val snapshot = diskCache.openSnapshot(imageUrl)
                     snapshot?.use {
@@ -40,9 +45,9 @@ class CoilImageLoader(private val context: Context) : ImageLoaderStrategy {
     }
 
     override suspend fun clearCache(): Unit = withContext(Dispatchers.IO) {
-        val imageLoader = coil3.ImageLoader(context)
-        imageLoader.diskCache?.clear()
-        imageLoader.memoryCache?.clear()
+        val loader = imageLoader
+        loader.diskCache?.clear()
+        loader.memoryCache?.clear()
     }
 }
 
