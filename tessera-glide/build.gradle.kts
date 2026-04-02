@@ -1,11 +1,15 @@
+import com.vanniktech.maven.publish.SonatypeHost
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    `maven-publish`
+    alias(libs.plugins.vanniktech.publish)
+    id("signing")
 }
 
-group = "com.github.bentleypark.tessera"
-version = "0.1.0"
+group = "io.github.bentleypark"
+version = libs.versions.tessera.get()
 
 android {
     namespace = "com.github.bentleypark.tessera.glide"
@@ -20,11 +24,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
@@ -38,4 +37,49 @@ dependencies {
     implementation(libs.glide)
     implementation(libs.coroutines.android)
     compileOnly(libs.timber)
+}
+
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+
+    coordinates("io.github.bentleypark", "tessera-glide", version.toString())
+
+    pom {
+        name.set("tessera-glide")
+        description.set("Glide companion module for Tessera image viewer")
+        inceptionYear.set("2025")
+        url.set("https://github.com/bentleypark/tessera")
+        licenses {
+            license {
+                name.set("Apache License 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                distribution.set("repo")
+            }
+        }
+        developers {
+            developer {
+                id.set("bentleypark")
+                name.set("BentleyPark")
+                url.set("https://github.com/bentleypark/")
+            }
+        }
+        scm {
+            url.set("https://github.com/bentleypark/tessera")
+            connection.set("scm:git:git://github.com/bentleypark/tessera.git")
+            developerConnection.set("scm:git:ssh://git@github.com/bentleypark/tessera.git")
+        }
+    }
+}
+
+signing {
+    val signingKey = project.findProperty("signing.key") as String?
+    val signingPassword = project.findProperty("signing.password") as String?
+
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        useInMemoryPgpKeys(
+            String(Base64.getDecoder().decode(signingKey)),
+            signingPassword
+        )
+        sign(publishing.publications)
+    }
 }

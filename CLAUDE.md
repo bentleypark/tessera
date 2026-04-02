@@ -6,7 +6,7 @@ Guidelines for Claude Code when working in the tessera repository.
 - **Project**: Tessera — Compose Multiplatform tile-based high-resolution image viewer
 - **GitHub**: bentleypark/tessera
 - **License**: Apache 2.0
-- **Distribution**: JitPack (`com.github.bentleypark.tessera:tessera-core:<TAG>`)
+- **Distribution**: Maven Central (`io.github.bentleypark:tessera-core:<TAG>`)
 
 ## Work Rules
 - **Always respond in Korean** unless explicitly asked otherwise
@@ -50,7 +50,7 @@ tessera/
 ./gradlew :tessera-glide:assembleDebug         # Build Glide module
 ./gradlew :sample:assembleDebug                # Build sample app
 ./gradlew :tessera-core:testDebugUnitTest      # Run all tests
-./gradlew :tessera-core:publishToMavenLocal    # Verify JitPack publishing
+./gradlew :tessera-core:publishToMavenLocal    # Verify Maven Central publishing
 ```
 
 ### iOS
@@ -140,4 +140,4 @@ RoutingImageLoader (routing by URI scheme)
 - GitHub Actions on push to main and PRs
 - Android: ubuntu-latest, JDK 21
 - iOS: macos-15, JDK 21
-- JitPack: tag-based publishing
+- Maven Central: tag-based publishing (vanniktech maven-publish plugin)

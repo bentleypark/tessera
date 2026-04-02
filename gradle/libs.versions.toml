@@ -9,6 +9,8 @@ compileSdk = "36"
 minSdk = "28"
 targetSdk = "36"
 agp = "9.1.0"
+vanniktech = "0.30.0"
+tessera = "0.1.0"
 
 [libraries]
 # Compose (Android BOM - sample app)
@@ -52,6 +54,7 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech" }
 
 [bundles]
 compose = ["compose-foundation", "compose-ui", "compose-ui-tooling-preview", "compose-material3"]

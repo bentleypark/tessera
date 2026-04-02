@@ -1,13 +1,17 @@
+import com.vanniktech.maven.publish.SonatypeHost
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
-    `maven-publish`
+    alias(libs.plugins.vanniktech.publish)
+    id("signing")
 }
 
-group = "com.github.bentleypark.tessera"
-version = "0.1.0"
+group = "io.github.bentleypark"
+version = libs.versions.tessera.get()
 
 kotlin {
     compilerOptions {
@@ -79,9 +83,49 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
+}
+
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+
+    coordinates("io.github.bentleypark", "tessera-core", version.toString())
+
+    pom {
+        name.set("tessera-core")
+        description.set("Compose Multiplatform tile-based high-resolution image viewer")
+        inceptionYear.set("2025")
+        url.set("https://github.com/bentleypark/tessera")
+        licenses {
+            license {
+                name.set("Apache License 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                distribution.set("repo")
+            }
         }
+        developers {
+            developer {
+                id.set("bentleypark")
+                name.set("BentleyPark")
+                url.set("https://github.com/bentleypark/")
+            }
+        }
+        scm {
+            url.set("https://github.com/bentleypark/tessera")
+            connection.set("scm:git:git://github.com/bentleypark/tessera.git")
+            developerConnection.set("scm:git:ssh://git@github.com/bentleypark/tessera.git")
+        }
+    }
+}
+
+signing {
+    val signingKey = project.findProperty("signing.key") as String?
+    val signingPassword = project.findProperty("signing.password") as String?
+
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        useInMemoryPgpKeys(
+            String(Base64.getDecoder().decode(signingKey)),
+            signingPassword
+        )
+        sign(publishing.publications)
     }
 }

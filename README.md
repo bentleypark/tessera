@@ -3,7 +3,7 @@
 > **Tessera** (Latin: "small tile piece") — A Compose Multiplatform tile-based high-resolution image viewer
 
 [![CI](https://github.com/bentleypark/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/bentleypark/tessera/actions/workflows/ci.yml)
-[![JitPack](https://jitpack.io/v/bentleypark/tessera.svg)](https://jitpack.io/#bentleypark/tessera)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.bentleypark/tessera-core.svg)](https://central.sonatype.com/artifact/io.github.bentleypark/tessera-core)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ## Overview
@@ -35,27 +35,17 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform that uses t
 
 ### Installation
 
-Add JitPack repository to your `settings.gradle.kts`:
-
-```kotlin
-dependencyResolutionManagement {
-    repositories {
-        maven("https://jitpack.io")
-    }
-}
-```
-
-Add dependencies:
+Add dependencies to your `build.gradle.kts`:
 
 ```kotlin
 // Core library (required)
-implementation("com.github.bentleypark.tessera:tessera-core:<version>")
+implementation("io.github.bentleypark:tessera-core:<version>")
 
 // Optional: Coil image loader (Android + iOS KMP)
-implementation("com.github.bentleypark.tessera:tessera-coil:<version>")
+implementation("io.github.bentleypark:tessera-coil:<version>")
 
 // Optional: Glide image loader (Android only)
-implementation("com.github.bentleypark.tessera:tessera-glide:<version>")
+implementation("io.github.bentleypark:tessera-glide:<version>")
 ```
 
 ### Android Usage
