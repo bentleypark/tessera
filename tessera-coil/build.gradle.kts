@@ -8,7 +8,7 @@ group = "com.github.bentleypark.tessera"
 version = "0.1.0"
 
 android {
-    namespace = "com.naemomlab.tessera.glide"
+    namespace = "com.naemomlab.tessera.coil"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
@@ -35,7 +35,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 dependencies {
     api(project(":tessera-core"))
-    implementation(libs.glide)
+    implementation(libs.coil)
+    implementation(libs.coil.okhttp)
     implementation(libs.coroutines.android)
     compileOnly(libs.timber)
 }

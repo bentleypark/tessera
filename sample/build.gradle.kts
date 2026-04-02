@@ -41,6 +41,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 dependencies {
     implementation(project(":tessera-core"))
+    implementation(project(":tessera-coil"))
 
     // Compose
     implementation(platform(libs.compose.bom))

@@ -1,7 +1,7 @@
 package com.naemomlab.tessera.glide
 
 import android.content.Context
-import android.util.Log
+import timber.log.Timber
 import com.bumptech.glide.Glide
 import com.naemomlab.tessera.ImageLoaderStrategy
 import com.naemomlab.tessera.ImageSource
@@ -28,7 +28,7 @@ class GlideImageLoader(private val context: Context) : ImageLoaderStrategy {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e("GlideImageLoader", "Failed to load image: $imageUrl", e)
+            Timber.tag("GlideImageLoader").e(e, "Failed to load image: $imageUrl")
             Result.failure(e)
         }
     }

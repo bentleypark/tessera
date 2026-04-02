@@ -31,7 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalContext
 import com.naemomlab.tessera.TesseraImage
+import com.naemomlab.tessera.coil.CoilImageLoader
 
 private data class TestImage(
     val label: String,
@@ -75,6 +77,8 @@ class SampleActivity : ComponentActivity() {
 
 @Composable
 private fun SampleContent() {
+    val context = LocalContext.current
+    val coilLoader = remember { CoilImageLoader(context) }
     var selectedImage by remember { mutableStateOf<TestImage?>(null) }
 
     if (selectedImage != null) {
@@ -83,6 +87,7 @@ private fun SampleContent() {
             TesseraImage(
                 imageUrl = selectedImage!!.url,
                 modifier = Modifier.fillMaxSize(),
+                imageLoader = coilLoader,
                 enableDismissGesture = true,
                 onDismiss = { selectedImage = null },
                 contentDescription = selectedImage!!.description
