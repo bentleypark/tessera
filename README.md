@@ -208,6 +208,7 @@ This enables 108MP images on iPhone 7 (2GB RAM) by keeping only ~21MB in memory 
 | `modifier` | Modifier | `Modifier` | Layout modifier |
 | `minScale` | Float | `1.0f` | Minimum zoom scale |
 | `maxScale` | Float | `10.0f` | Maximum zoom scale |
+| `contentScale` | ContentScale | `Fit` | Content scaling: Fit, FitWidth, FitHeight, Auto |
 | `imageLoader` | ImageLoaderStrategy? | `null` | Custom image loader (Coil, Glide, etc.) |
 | `contentDescription` | String? | `null` | Accessibility description |
 | `enableDismissGesture` | Boolean | `false` | Vertical drag-to-dismiss |
@@ -238,6 +239,31 @@ HorizontalPager(state = pagerState) { page ->
 | Zoomed out (1.0x) | Next/prev page | Zoom in | Zoom to 3x | Dismiss (if enabled) |
 | Zoomed in (middle) | Pan image | Zoom | Zoom out | Pan image |
 | Zoomed in (at edge) | Next/prev page | Zoom | Zoom out | Pan image |
+
+### ReadMode (ContentScale)
+
+For long images (webtoons, documents) or wide images (panoramas), use `ContentScale` to auto-fit:
+
+```kotlin
+// Auto-detect: tall → FitWidth, wide → FitHeight, normal → Fit
+TesseraImage(
+    imageUrl = "https://example.com/webtoon.jpg",
+    contentScale = ContentScale.Auto
+)
+
+// Force fit to width (vertical scroll)
+TesseraImage(
+    imageUrl = "https://example.com/document.jpg",
+    contentScale = ContentScale.FitWidth
+)
+```
+
+| Mode | Behavior |
+|------|----------|
+| `Fit` | Fit entire image in viewport (default) |
+| `FitWidth` | Fit to width, vertical scroll |
+| `FitHeight` | Fit to height, horizontal scroll |
+| `Auto` | Detect based on aspect ratio |
 
 ## Building
 

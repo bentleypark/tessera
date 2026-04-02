@@ -14,6 +14,7 @@ import androidx.compose.ui.tooling.preview.Preview
  * @param modifier Modifier to be applied to the image viewer
  * @param minScale Minimum scale factor (default: 1.0f)
  * @param maxScale Maximum scale factor (default: 10.0f)
+ * @param contentScale Content scaling strategy (default: Fit)
  * @param imageLoader Image loading strategy (default: RoutingImageLoader)
  * @param contentDescription Accessibility description
  * @param enableDismissGesture Enable vertical drag-to-dismiss gesture
@@ -25,6 +26,7 @@ fun TesseraImage(
     modifier: Modifier = Modifier,
     minScale: Float = 1.0f,
     maxScale: Float = 10.0f,
+    contentScale: ContentScale = ContentScale.Fit,
     imageLoader: ImageLoaderStrategy? = null,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
@@ -41,6 +43,7 @@ fun TesseraImage(
         modifier = modifier,
         minScale = minScale,
         maxScale = maxScale,
+        contentScale = contentScale,
         imageLoader = resolvedLoader,
         decoderFactory = decoderFactory,
         contentDescription = contentDescription,
@@ -61,6 +64,7 @@ fun TesseraImage(
     modifier: Modifier = Modifier,
     minScale: Float = 1.0f,
     maxScale: Float = 10.0f,
+    contentScale: ContentScale = ContentScale.Fit,
     imageLoader: ImageLoaderStrategy? = null,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
@@ -78,6 +82,7 @@ fun TesseraImage(
         modifier = modifier,
         minScale = minScale,
         maxScale = maxScale,
+        contentScale = contentScale,
         imageLoader = resolvedLoader,
         decoderFactory = decoderFactory,
         contentDescription = contentDescription,

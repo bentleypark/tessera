@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,7 +38,8 @@ import androidx.compose.ui.window.ComposeUIViewController
 private data class TestImage(
     val label: String,
     val description: String,
-    val url: String
+    val url: String,
+    val contentScale: ContentScale = ContentScale.Fit
 )
 
 private val testImages = listOf(
@@ -90,6 +92,24 @@ private val testImages = listOf(
         label = "EXIF 270°",
         description = "EXIF orientation 8 (270° CW)",
         url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_8.jpg"
+    ),
+    TestImage(
+        label = "FitWidth",
+        description = "세로로 긴 이미지 (800x2400) — 화면 너비 맞춤, 세로 스크롤",
+        url = "https://picsum.photos/800/2400",
+        contentScale = ContentScale.FitWidth
+    ),
+    TestImage(
+        label = "FitHeight",
+        description = "가로 풍경 — 화면 높이 맞춤, 가로 스크롤",
+        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=4096&q=80",
+        contentScale = ContentScale.FitHeight
+    ),
+    TestImage(
+        label = "Auto",
+        description = "일반 이미지 — Auto 감지 (비율에 따라 자동 선택)",
+        url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2048&q=80",
+        contentScale = ContentScale.Auto
     )
 )
 
@@ -104,6 +124,7 @@ fun MainViewController(
 @Composable
 private fun SampleContent(imageLoader: ImageLoaderStrategy? = null) {
     var selectedIndex by remember { mutableIntStateOf(-1) }
+    val scrollState = rememberScrollState()
 
     if (selectedIndex >= 0) {
         PagerGallery(
@@ -113,7 +134,7 @@ private fun SampleContent(imageLoader: ImageLoaderStrategy? = null) {
             onBack = { selectedIndex = -1 }
         )
     } else {
-        ImageSelectionScreen(onSelect = { index -> selectedIndex = index })
+        ImageSelectionScreen(scrollState = scrollState, onSelect = { index -> selectedIndex = index })
     }
 }
 
@@ -131,12 +152,14 @@ private fun PagerGallery(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
+            val isFitMode = images[page].contentScale == ContentScale.Fit
             TesseraImage(
                 imageUrl = images[page].url,
                 modifier = Modifier.fillMaxSize(),
+                contentScale = images[page].contentScale,
                 imageLoader = imageLoader,
-                enableDismissGesture = true,
-                enablePagerIntegration = true,
+                enableDismissGesture = isFitMode,
+                enablePagerIntegration = isFitMode,
                 onDismiss = onBack,
                 contentDescription = images[page].description
             )
@@ -175,13 +198,13 @@ private fun PagerGallery(
 }
 
 @Composable
-private fun ImageSelectionScreen(onSelect: (Int) -> Unit) {
+private fun ImageSelectionScreen(scrollState: ScrollState, onSelect: (Int) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
             .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

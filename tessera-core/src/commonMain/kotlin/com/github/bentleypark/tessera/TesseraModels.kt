@@ -58,6 +58,20 @@ data class TileGrid(
 }
 
 /**
+ * Content scaling strategy for initial image display.
+ */
+enum class ContentScale {
+    /** Fit entire image in viewport (default behavior) */
+    Fit,
+    /** Fit to viewport width, allow vertical scrolling (for tall images like webtoons) */
+    FitWidth,
+    /** Fit to viewport height, allow horizontal scrolling (for wide images like panoramas) */
+    FitHeight,
+    /** Auto-detect based on aspect ratio: tall → FitWidth, wide → FitHeight, normal → Fit */
+    Auto
+}
+
+/**
  * Viewport information (visible area on screen)
  */
 data class Viewport(

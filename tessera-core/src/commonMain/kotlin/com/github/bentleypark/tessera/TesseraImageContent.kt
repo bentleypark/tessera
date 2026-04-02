@@ -56,6 +56,7 @@ internal fun TesseraImageContent(
     modifier: Modifier = Modifier,
     minScale: Float = 1.0f,
     maxScale: Float = 10.0f,
+    contentScale: ContentScale = ContentScale.Fit,
     imageLoader: ImageLoaderStrategy,
     decoderFactory: (ImageSource) -> RegionDecoder,
     contentDescription: String? = null,
@@ -269,7 +270,7 @@ internal fun TesseraImageContent(
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(enablePagerIntegration, enableDismissGesture) {
+                        .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 var shouldConsume = !enablePagerIntegration
@@ -320,7 +321,7 @@ internal fun TesseraImageContent(
                                             val imageHeight = imageInfo.height.toFloat()
                                             val viewWidth = size.width
                                             val viewHeight = size.height
-                                            val fitScale = minOf(viewWidth / imageWidth, viewHeight / imageHeight)
+                                            val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
                                             val totalScale = fitScale * scale
                                             val scaledWidth = imageWidth * totalScale
                                             val maxOffsetX = if (scaledWidth > viewWidth) (scaledWidth - viewWidth) / 2f else 0f
@@ -355,9 +356,7 @@ internal fun TesseraImageContent(
                                         val viewWidth = size.width
                                         val viewHeight = size.height
 
-                                        val scaleX = viewWidth / imageWidth
-                                        val scaleY = viewHeight / imageHeight
-                                        val fitScale = minOf(scaleX, scaleY)
+                                        val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
 
                                         val oldTotalScale = fitScale * scale
                                         val oldScaledWidth = imageWidth * oldTotalScale
@@ -383,7 +382,9 @@ internal fun TesseraImageContent(
                                         val newOffsetY = newBaseOffsetY - newCenterY + pan.y
 
                                         val isZoomedIn = newScale > zoomThreshold
-                                        if (!isZoomedIn) {
+                                        val resolved = resolveContentScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
+                                        val overflows = resolved == ContentScale.FitWidth || resolved == ContentScale.FitHeight
+                                        if (!isZoomedIn && !overflows) {
                                             offset = Offset.Zero
                                             scale = minScale
                                         } else {
@@ -399,7 +400,7 @@ internal fun TesseraImageContent(
                                                 x = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX),
                                                 y = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
                                             )
-                                            scale = newScale
+                                            scale = if (!isZoomedIn) minScale else newScale
                                         }
                                     } ?: run {
                                         val newScale = (scale * zoom).coerceIn(minScale, maxScale)
@@ -423,18 +424,35 @@ internal fun TesseraImageContent(
                                         // Double tap detected
                                         lastTapTime = 0L
                                         val tapOffset = downPosition
-                                        if (scale > 1f) {
-                                            scale = 1f
-                                            offset = Offset.Zero
+                                        if (scale > minScale) {
+                                            scale = minScale
+                                            tesseraState?.imageInfo?.let { imageInfo ->
+                                                val imageWidth = imageInfo.width.toFloat()
+                                                val imageHeight = imageInfo.height.toFloat()
+                                                val resolved = resolveContentScale(contentScale, imageWidth, imageHeight, size.width.toFloat(), size.height.toFloat())
+                                                val overflows = resolved == ContentScale.FitWidth || resolved == ContentScale.FitHeight
+                                                if (overflows) {
+                                                    val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, size.width.toFloat(), size.height.toFloat())
+                                                    val newTotalScale = fitScale * minScale
+                                                    val scaledW = imageWidth * newTotalScale
+                                                    val scaledH = imageHeight * newTotalScale
+                                                    val maxOX = if (scaledW > size.width) (scaledW - size.width) / 2f else 0f
+                                                    val maxOY = if (scaledH > size.height) (scaledH - size.height) / 2f else 0f
+                                                    offset = Offset(
+                                                        x = offset.x.coerceIn(-maxOX, maxOX),
+                                                        y = offset.y.coerceIn(-maxOY, maxOY)
+                                                    )
+                                                } else {
+                                                    offset = Offset.Zero
+                                                }
+                                            } ?: run { offset = Offset.Zero }
                                         } else {
                                             tesseraState?.imageInfo?.let { imageInfo ->
                                                 val imageWidth = imageInfo.width.toFloat()
                                                 val imageHeight = imageInfo.height.toFloat()
                                                 val viewWidth = size.width
                                                 val viewHeight = size.height
-                                                val scaleX = viewWidth / imageWidth
-                                                val scaleY = viewHeight / imageHeight
-                                                val fitScale = minOf(scaleX, scaleY)
+                                                val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
                                                 val currentTotalScale = fitScale * scale
                                                 val targetScale = 3f
                                                 val targetTotalScale = fitScale * targetScale
@@ -474,9 +492,7 @@ internal fun TesseraImageContent(
                     if (imageInfo != null) {
                         val imageWidth = imageInfo.width.toFloat()
                         val imageHeight = imageInfo.height.toFloat()
-                        val scaleX = size.width / imageWidth
-                        val scaleY = size.height / imageHeight
-                        val fitScale = minOf(scaleX, scaleY)
+                        val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, size.width, size.height)
                         val totalScale = fitScale * scale
 
                         val scaledWidth = imageWidth * totalScale
@@ -559,6 +575,49 @@ internal fun TesseraImageContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * Resolve Auto content scale based on image and viewport aspect ratios.
+ */
+internal fun resolveContentScale(
+    contentScale: ContentScale,
+    imageWidth: Float,
+    imageHeight: Float,
+    viewWidth: Float,
+    viewHeight: Float
+): ContentScale {
+    if (contentScale != ContentScale.Auto) return contentScale
+    if (imageHeight <= 0f || viewHeight <= 0f) return ContentScale.Fit
+
+    val imageAspect = imageWidth / imageHeight
+    val viewAspect = viewWidth / viewHeight
+
+    return when {
+        imageAspect < viewAspect / 1.5f -> ContentScale.FitWidth  // tall image
+        imageAspect > viewAspect * 1.5f -> ContentScale.FitHeight // wide image
+        else -> ContentScale.Fit
+    }
+}
+
+internal fun computeFitScale(
+    contentScale: ContentScale,
+    imageWidth: Float,
+    imageHeight: Float,
+    viewWidth: Float,
+    viewHeight: Float
+): Float {
+    if (imageWidth <= 0f || imageHeight <= 0f || viewWidth <= 0f || viewHeight <= 0f) {
+        return 1f
+    }
+    val scaleX = viewWidth / imageWidth
+    val scaleY = viewHeight / imageHeight
+    val resolved = resolveContentScale(contentScale, imageWidth, imageHeight, viewWidth, viewHeight)
+    return when (resolved) {
+        ContentScale.FitWidth -> scaleX
+        ContentScale.FitHeight -> scaleY
+        ContentScale.Fit, ContentScale.Auto -> minOf(scaleX, scaleY)
     }
 }
 
