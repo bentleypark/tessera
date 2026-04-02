@@ -22,6 +22,7 @@ compose-activity = { group = "androidx.activity", name = "activity-compose", ver
 
 # AndroidX
 androidx-core = { group = "androidx.core", name = "core-ktx", version = "1.18.0" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version = "1.4.1" }
 
 # Coroutines
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }

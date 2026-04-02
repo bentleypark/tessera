@@ -76,6 +76,26 @@ private val testImages = listOf(
         label = "108MP",
         description = "12000px (~7.5MB, ~432MB decoded)",
         url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=12000&q=80"
+    ),
+    TestImage(
+        label = "EXIF 0°",
+        description = "EXIF orientation 1 (normal)",
+        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_1.jpg"
+    ),
+    TestImage(
+        label = "EXIF 90°",
+        description = "EXIF orientation 6 (90° CW)",
+        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_6.jpg"
+    ),
+    TestImage(
+        label = "EXIF 180°",
+        description = "EXIF orientation 3 (180°)",
+        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_3.jpg"
+    ),
+    TestImage(
+        label = "EXIF 270°",
+        description = "EXIF orientation 8 (270° CW)",
+        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_8.jpg"
     )
 )
 

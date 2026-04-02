@@ -3,14 +3,17 @@ package com.github.bentleypark.tessera
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
+import android.graphics.Matrix
 import android.graphics.Rect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.InputStream
 
 /**
  * Wrapper for Android's BitmapRegionDecoder to handle tile-based image decoding.
+ * Automatically handles EXIF orientation for correct display.
  */
 class ImageDecoder(
     private val imageSource: ImageSource,
@@ -19,6 +22,12 @@ class ImageDecoder(
     private var decoder: BitmapRegionDecoder? = null
     private var _imageInfo: ImageInfo? = null
     private var fallbackFile: File? = null
+
+    // EXIF orientation: raw pixel dimensions (before rotation)
+    private var rawWidth: Int = 0
+    private var rawHeight: Int = 0
+    private var rotationDegrees: Int = 0
+    private var isMirrored: Boolean = false
 
     @Volatile
     private var isDecoderInitialized = false
@@ -35,13 +44,50 @@ class ImageDecoder(
         }
 
         decodeBounds(options)
+        rawWidth = options.outWidth
+        rawHeight = options.outHeight
+
+        // Read EXIF orientation
+        readExifOrientation()
+
+        // Report post-rotation dimensions
+        val (displayWidth, displayHeight) = if (rotationDegrees == 90 || rotationDegrees == 270) {
+            rawHeight to rawWidth
+        } else {
+            rawWidth to rawHeight
+        }
+
         _imageInfo = ImageInfo(
-            width = options.outWidth,
-            height = options.outHeight,
+            width = displayWidth,
+            height = displayHeight,
             mimeType = options.outMimeType ?: "image/jpeg"
         )
 
         ensureDecoderInitialized()
+    }
+
+    private fun readExifOrientation() {
+        try {
+            val exif = when (val source = imageSource) {
+                is ImageSource.FileSource -> ExifInterface(source.file.absolutePath)
+                is ImageSource.ResourceSource -> {
+                    source.openStream().use { ExifInterface(it) }
+                }
+            }
+
+            when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> { rotationDegrees = 90 }
+                ExifInterface.ORIENTATION_ROTATE_180 -> { rotationDegrees = 180 }
+                ExifInterface.ORIENTATION_ROTATE_270 -> { rotationDegrees = 270 }
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> { isMirrored = true }
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> { rotationDegrees = 180; isMirrored = true }
+                ExifInterface.ORIENTATION_TRANSPOSE -> { rotationDegrees = 90; isMirrored = true }
+                ExifInterface.ORIENTATION_TRANSVERSE -> { rotationDegrees = 270; isMirrored = true }
+                else -> { /* ORIENTATION_NORMAL or ORIENTATION_UNDEFINED */ }
+            }
+        } catch (e: Exception) {
+            logWarning("ImageDecoder", "Failed to read EXIF orientation", e)
+        }
     }
 
     private fun ensureDecoderInitialized() {
@@ -65,8 +111,17 @@ class ImageDecoder(
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
 
-            val androidRect = Rect(rect.left, rect.top, rect.right, rect.bottom)
-            currentDecoder.decodeRegion(androidRect, options)?.asImageBitmap()
+            // Remap display coordinates to raw pixel coordinates
+            val rawRect = remapRect(rect)
+            val androidRect = Rect(rawRect.left, rawRect.top, rawRect.right, rawRect.bottom)
+            val decoded = currentDecoder.decodeRegion(androidRect, options) ?: return null
+
+            // Apply rotation
+            val rotated = applyRotation(decoded)
+            if (rotated !== decoded) decoded.recycle()
+            rotated.asImageBitmap()
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logError("ImageDecoder", "decodeTile failed: rect=$rect sampleSize=$sampleSize", e)
             null
@@ -90,12 +145,22 @@ class ImageDecoder(
             val preview = openStream().use { stream ->
                 BitmapFactory.decodeStream(stream, null, options)
             }
-            if (preview == null) {
+            val bitmap = if (preview == null) {
                 getOrCreateFallbackFileForSource()?.let { fallback ->
-                    return BitmapFactory.decodeFile(fallback.absolutePath, options)?.asImageBitmap()
+                    BitmapFactory.decodeFile(fallback.absolutePath, options)
                 }
+            } else {
+                preview
             }
-            preview?.asImageBitmap()
+
+            // Apply rotation to preview
+            bitmap?.let {
+                val rotated = applyRotation(it)
+                if (rotated !== it) it.recycle()
+                rotated.asImageBitmap()
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             logError("ImageDecoder", "decodePreview failed: maxSize=$maxSize", e)
             null
@@ -108,6 +173,24 @@ class ImageDecoder(
         isDecoderInitialized = false
         fallbackFile?.delete()
         fallbackFile = null
+    }
+
+    private fun remapRect(rect: TileRect): TileRect {
+        return remapRectForOrientation(rect, rawWidth, rawHeight, rotationDegrees, isMirrored)
+    }
+
+    /**
+     * Apply EXIF rotation/mirror to a decoded bitmap.
+     * Returns the same bitmap if no rotation needed.
+     */
+    private fun applyRotation(bitmap: Bitmap): Bitmap {
+        if (rotationDegrees == 0 && !isMirrored) return bitmap
+
+        val matrix = Matrix()
+        if (isMirrored) matrix.preScale(-1f, 1f)
+        if (rotationDegrees != 0) matrix.postRotate(rotationDegrees.toFloat())
+
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun decodeBounds(options: BitmapFactory.Options) {

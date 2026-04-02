@@ -73,6 +73,12 @@ class CgImageSourceRegionDecoder(
     private var _imageInfo: ImageInfo? = null
     private var minSubsampleFactor: Int = 1
 
+    // EXIF orientation
+    private var rawWidth: Int = 0
+    private var rawHeight: Int = 0
+    private var rotationDegrees: Int = 0
+    private var isMirrored: Boolean = false
+
     // Cached Skia image and actual dimensions for the current subsample level.
     // Access synchronized via cacheLock.
     @Volatile private var cachedSkiaImage: Image? = null
@@ -103,17 +109,26 @@ class CgImageSourceRegionDecoder(
             throw IllegalStateException("Failed to read image at index 0")
         }
 
-        val width = CGImageGetWidth(cgImage).toInt()
-        val height = CGImageGetHeight(cgImage).toInt()
+        rawWidth = CGImageGetWidth(cgImage).toInt()
+        rawHeight = CGImageGetHeight(cgImage).toInt()
         CGImageRelease(cgImage)
 
-        if (width <= 0 || height <= 0) {
-            throw IllegalStateException("Invalid image dimensions: ${width}x${height}")
+        if (rawWidth <= 0 || rawHeight <= 0) {
+            throw IllegalStateException("Invalid image dimensions: ${rawWidth}x${rawHeight}")
         }
 
-        _imageInfo = ImageInfo(width = width, height = height)
+        // Read EXIF orientation
+        readExifOrientation(source)
 
-        val megapixels = width.toLong() * height.toLong()
+        val (displayWidth, displayHeight) = if (rotationDegrees == 90 || rotationDegrees == 270) {
+            rawHeight to rawWidth
+        } else {
+            rawWidth to rawHeight
+        }
+
+        _imageInfo = ImageInfo(width = displayWidth, height = displayHeight)
+
+        val megapixels = rawWidth.toLong() * rawHeight.toLong()
         minSubsampleFactor = when {
             megapixels > 80_000_000 -> 4
             megapixels > 30_000_000 -> 2
@@ -146,32 +161,50 @@ class CgImageSourceRegionDecoder(
         return cacheLock.withLock {
             val skiaImage = getOrCreateSkiaImage(source, factor) ?: return@withLock null
 
-            val info = _imageInfo ?: return@withLock null
-            val scaleX = cachedWidth.toFloat() / info.width.toFloat()
-            val scaleY = cachedHeight.toFloat() / info.height.toFloat()
+            // Remap display rect to raw coordinates for EXIF orientation
+            val rawRect = remapRect(rect)
+
+            // Scale raw coordinates to cached subsampled image dimensions
+            val scaleX = cachedWidth.toFloat() / rawWidth.toFloat()
+            val scaleY = cachedHeight.toFloat() / rawHeight.toFloat()
 
             val effectiveSampleSize = maxOf(sampleSize, factor)
             val tileWidth = (rect.right - rect.left) / effectiveSampleSize
             val tileHeight = (rect.bottom - rect.top) / effectiveSampleSize
             if (tileWidth <= 0 || tileHeight <= 0) return@withLock null
 
+            // Raw tile dimensions (before rotation)
+            val rawTileWidth = (rawRect.right - rawRect.left) / effectiveSampleSize
+            val rawTileHeight = (rawRect.bottom - rawRect.top) / effectiveSampleSize
+            if (rawTileWidth <= 0 || rawTileHeight <= 0) return@withLock null
+
             val bitmap = Bitmap()
             try {
                 bitmap.allocPixels(
-                    SkiaImageInfo(tileWidth, tileHeight, ColorType.RGBA_8888, ColorAlphaType.PREMUL)
+                    SkiaImageInfo(rawTileWidth, rawTileHeight, ColorType.RGBA_8888, ColorAlphaType.PREMUL)
                 )
 
                 val canvas = Canvas(bitmap)
                 val srcRect = SkiaRect(
-                    rect.left.toFloat() * scaleX,
-                    rect.top.toFloat() * scaleY,
-                    rect.right.toFloat() * scaleX,
-                    rect.bottom.toFloat() * scaleY
+                    rawRect.left.toFloat() * scaleX,
+                    rawRect.top.toFloat() * scaleY,
+                    rawRect.right.toFloat() * scaleX,
+                    rawRect.bottom.toFloat() * scaleY
                 )
-                val dstRect = SkiaRect(0f, 0f, tileWidth.toFloat(), tileHeight.toFloat())
+                val dstRect = SkiaRect(0f, 0f, rawTileWidth.toFloat(), rawTileHeight.toFloat())
                 canvas.drawImageRect(skiaImage, srcRect, dstRect, SamplingMode.LINEAR, Paint(), true)
 
-                Image.makeFromBitmap(bitmap).toComposeImageBitmap()
+                // Apply EXIF rotation
+                val rawImage = Image.makeFromBitmap(bitmap)
+                try {
+                    if (rotationDegrees == 0 && !isMirrored) {
+                        rawImage.toComposeImageBitmap()
+                    } else {
+                        applyRotation(rawImage, rawTileWidth, rawTileHeight)
+                    }
+                } finally {
+                    rawImage.close()
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -220,6 +253,83 @@ class CgImageSourceRegionDecoder(
         } finally {
             CGImageRelease(thumbnail)
         }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun readExifOrientation(source: CGImageSourceRef) {
+        try {
+            val properties = platform.ImageIO.CGImageSourceCopyPropertiesAtIndex(source, 0u, null)
+                ?: return
+            val orientationKey = platform.ImageIO.kCGImagePropertyOrientation
+            val orientationValue = platform.CoreFoundation.CFDictionaryGetValue(properties, orientationKey)
+
+            if (orientationValue != null) {
+                val nsNumber = platform.Foundation.CFBridgingRelease(orientationValue) as? platform.Foundation.NSNumber
+                val orientation = nsNumber?.intValue ?: 1
+
+                when (orientation) {
+                    6 -> rotationDegrees = 90
+                    3 -> rotationDegrees = 180
+                    8 -> rotationDegrees = 270
+                    2 -> isMirrored = true
+                    4 -> { rotationDegrees = 180; isMirrored = true }
+                    5 -> { rotationDegrees = 90; isMirrored = true }
+                    7 -> { rotationDegrees = 270; isMirrored = true }
+                }
+            }
+
+            // Release AFTER reading orientationValue (CFDictionaryGetValue follows Get Rule)
+            CFRelease(properties)
+        } catch (e: Exception) {
+            logWarning("CgRegionDecoder", "Failed to read EXIF orientation", e)
+        }
+    }
+
+    private fun remapRect(rect: TileRect): TileRect {
+        return remapRectForOrientation(rect, rawWidth, rawHeight, rotationDegrees, isMirrored)
+    }
+
+    private fun applyRotation(source: Image, tileWidth: Int, tileHeight: Int): ImageBitmap? {
+        if (rotationDegrees == 0 && !isMirrored) {
+            return Image.makeFromBitmap(
+                Bitmap().apply {
+                    allocPixels(SkiaImageInfo(tileWidth, tileHeight, ColorType.RGBA_8888, ColorAlphaType.PREMUL))
+                    val canvas = Canvas(this)
+                    canvas.drawImageRect(
+                        source,
+                        org.jetbrains.skia.Rect.makeWH(source.width.toFloat(), source.height.toFloat()),
+                        org.jetbrains.skia.Rect.makeWH(tileWidth.toFloat(), tileHeight.toFloat()),
+                        SamplingMode.LINEAR, Paint(), true
+                    )
+                }
+            ).toComposeImageBitmap()
+        }
+
+        // For rotation: swap dimensions for 90/270
+        val (outW, outH) = if (rotationDegrees == 90 || rotationDegrees == 270) {
+            tileHeight to tileWidth
+        } else {
+            tileWidth to tileHeight
+        }
+
+        val bitmap = Bitmap()
+        bitmap.allocPixels(SkiaImageInfo(outW, outH, ColorType.RGBA_8888, ColorAlphaType.PREMUL))
+        val canvas = Canvas(bitmap)
+
+        canvas.translate(outW / 2f, outH / 2f)
+        if (isMirrored) canvas.scale(-1f, 1f)
+        canvas.rotate(rotationDegrees.toFloat())
+        canvas.translate(-tileWidth / 2f, -tileHeight / 2f)
+        canvas.drawImageRect(
+            source,
+            org.jetbrains.skia.Rect.makeWH(source.width.toFloat(), source.height.toFloat()),
+            org.jetbrains.skia.Rect.makeWH(tileWidth.toFloat(), tileHeight.toFloat()),
+            SamplingMode.LINEAR, Paint(), true
+        )
+
+        val result = Image.makeFromBitmap(bitmap).toComposeImageBitmap()
+        bitmap.close()
+        return result
     }
 
     override fun close() {
