@@ -1,10 +1,10 @@
 package com.naemomlab.tessera
 
 /**
- * Platform-agnostic logging.
+ * Platform-agnostic logging. Public for companion module access (tessera-coil, tessera-glide).
  */
-internal expect fun logError(tag: String, message: String, throwable: Throwable? = null)
-internal expect fun logWarning(tag: String, message: String, throwable: Throwable? = null)
+expect fun logError(tag: String, message: String, throwable: Throwable? = null)
+expect fun logWarning(tag: String, message: String, throwable: Throwable? = null)
 
 /**
  * Returns the simple class name of the throwable in a platform-agnostic way.
@@ -17,9 +17,9 @@ internal expect fun Throwable.simpleClassName(): String
 internal expect fun currentTimeMillis(): Long
 
 /**
- * IO dispatcher for tile loading.
+ * IO dispatcher for background work. Public for companion module access.
  */
-internal expect val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
+expect val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
 
 /**
  * Dispatcher for image download and decode (separate from tile loading to prevent starvation).

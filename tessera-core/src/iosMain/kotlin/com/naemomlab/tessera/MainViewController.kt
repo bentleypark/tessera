@@ -70,14 +70,16 @@ private val testImages = listOf(
     )
 )
 
-fun MainViewController() = ComposeUIViewController {
+fun MainViewController(
+    imageLoader: ImageLoaderStrategy? = null
+) = ComposeUIViewController {
     MaterialTheme {
-        SampleContent()
+        SampleContent(imageLoader = imageLoader)
     }
 }
 
 @Composable
-private fun SampleContent() {
+private fun SampleContent(imageLoader: ImageLoaderStrategy? = null) {
     var selectedImage by remember { mutableStateOf<TestImage?>(null) }
 
     if (selectedImage != null) {
@@ -85,6 +87,7 @@ private fun SampleContent() {
             TesseraImage(
                 imageUrl = selectedImage!!.url,
                 modifier = Modifier.fillMaxSize(),
+                imageLoader = imageLoader,
                 enableDismissGesture = true,
                 onDismiss = { selectedImage = null },
                 contentDescription = selectedImage!!.description

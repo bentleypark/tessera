@@ -1,7 +1,6 @@
 package com.naemomlab.tessera.coil
 
 import android.content.Context
-import timber.log.Timber
 import coil3.ImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
@@ -10,6 +9,9 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import com.naemomlab.tessera.ImageLoaderStrategy
 import com.naemomlab.tessera.ImageSource
+import com.naemomlab.tessera.ioDispatcher
+import com.naemomlab.tessera.logError
+import com.naemomlab.tessera.logWarning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -33,7 +35,7 @@ class CoilImageLoader(
 
     override suspend fun loadImageSource(
         imageUrl: String
-    ): Result<ImageSource> = withContext(Dispatchers.IO) {
+    ): Result<ImageSource> = withContext(ioDispatcher) {
         try {
             val request = ImageRequest.Builder(context)
                 .data(imageUrl)
@@ -55,7 +57,7 @@ class CoilImageLoader(
                                 return@withContext Result.success(ImageSource.FileSource(cachedFile))
                             }
                         } catch (e: Exception) {
-                            Timber.tag(TAG).w(e, "Failed to read disk cache: $imageUrl")
+                            logWarning(TAG, "Failed to read disk cache: $imageUrl", e)
                         } finally {
                             snapshot.close()
                         }
@@ -86,7 +88,7 @@ class CoilImageLoader(
                                 src.copyTo(tempFile, overwrite = true)
                                 return@withContext Result.success(ImageSource.FileSource(tempFile))
                             } catch (e: Exception) {
-                                Timber.tag(TAG).w(e, "Failed to copy cache to temp: $imageUrl")
+                                logWarning(TAG, "Failed to copy cache to temp: $imageUrl", e)
                             } finally {
                                 reSnapshot.close()
                             }
@@ -102,22 +104,22 @@ class CoilImageLoader(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to load image: $imageUrl")
+            logError(TAG, "Failed to load image: $imageUrl", e)
             Result.failure(e)
         }
     }
 
     override suspend fun clearCache() {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 imageLoader.diskCache?.clear()
             } catch (e: Exception) {
-                Timber.tag(TAG).w(e, "Failed to clear disk cache")
+                logWarning(TAG, "Failed to clear disk cache", e)
             }
             try {
                 imageLoader.memoryCache?.clear()
             } catch (e: Exception) {
-                Timber.tag(TAG).w(e, "Failed to clear memory cache")
+                logWarning(TAG, "Failed to clear memory cache", e)
             }
         }
     }

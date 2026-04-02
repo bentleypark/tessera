@@ -27,24 +27,24 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: Z2392B3AD7
         FRAMEWORK_SEARCH_PATHS:
-          - "$(SRCROOT)/../tessera-core/build/bin/currentFramework"
+          - "$(SRCROOT)/../tessera-coil/build/bin/currentFramework"
         OTHER_LINKER_FLAGS: "-ObjC"
         ENABLE_BITCODE: "NO"
         STRIP_BITCODE_FROM_COPIED_FILES: "NO"
     dependencies:
-      - framework: "../tessera-core/build/bin/currentFramework/TesseraCore.framework"
+      - framework: "../tessera-coil/build/bin/currentFramework/TesseraCoil.framework"
         embed: true
     preBuildScripts:
       - name: "Build KMP Framework"
         script: |
           cd "$SRCROOT/.."
-          FRAMEWORK_DIR="tessera-core/build/bin/currentFramework"
-          rm -f "$FRAMEWORK_DIR"
+          COIL_DIR="tessera-coil/build/bin/currentFramework"
+          rm -f "$COIL_DIR"
           if [ "${PLATFORM_NAME}" = "iphonesimulator" ]; then
-            ./gradlew :tessera-core:linkDebugFrameworkIosSimulatorArm64
-            ln -sf "$(pwd)/tessera-core/build/bin/iosSimulatorArm64/debugFramework" "$FRAMEWORK_DIR"
+            ./gradlew :tessera-coil:linkDebugFrameworkIosSimulatorArm64
+            ln -sf "$(pwd)/tessera-coil/build/bin/iosSimulatorArm64/debugFramework" "$COIL_DIR"
           else
-            ./gradlew :tessera-core:linkDebugFrameworkIosArm64
-            ln -sf "$(pwd)/tessera-core/build/bin/iosArm64/debugFramework" "$FRAMEWORK_DIR"
+            ./gradlew :tessera-coil:linkDebugFrameworkIosArm64
+            ln -sf "$(pwd)/tessera-coil/build/bin/iosArm64/debugFramework" "$COIL_DIR"
           fi
         basedOnDependencyAnalysis: false

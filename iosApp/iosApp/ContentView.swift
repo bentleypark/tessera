@@ -1,10 +1,11 @@
 import UIKit
 import SwiftUI
-import TesseraCore
+import TesseraCoil
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        let coilLoader = CoilImageLoader.companion.create()
+        return MainViewControllerKt.MainViewController(imageLoader: coilLoader)
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
