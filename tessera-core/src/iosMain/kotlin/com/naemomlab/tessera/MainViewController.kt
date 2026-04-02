@@ -2,6 +2,8 @@ package com.naemomlab.tessera
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +57,16 @@ private val testImages = listOf(
         label = "6K",
         description = "6000px (~4MB, ~96MB decoded)",
         url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=6000&q=90"
+    ),
+    TestImage(
+        label = "8K",
+        description = "7680px (~5.6MB, ~134MB decoded)",
+        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=7680&q=80"
+    ),
+    TestImage(
+        label = "108MP",
+        description = "12000px (~7.5MB, ~432MB decoded)",
+        url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=12000&q=80"
     )
 )
 
@@ -115,7 +127,8 @@ private fun ImageSelectionScreen(onSelect: (TestImage) -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

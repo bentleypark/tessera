@@ -29,7 +29,7 @@ fun TesseraImage(
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: IosImageLoader() }
     val decoderFactory: (ImageSource) -> RegionDecoder = remember {
-        { source -> IosRegionDecoder(source) }
+        { source -> CgImageSourceRegionDecoder(source) }
     }
     TesseraImageContent(
         imageUrl = imageUrl,

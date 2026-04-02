@@ -266,6 +266,156 @@ class TesseraStateTest {
 
     // --- getTileRect ---
 
+    // --- initializeDecoder / applyInitResult ---
+
+    @Test
+    fun initializeDecoder_success_returnsSuccessResult() {
+        val decoder = FakeRegionDecoder(width = 1920, height = 1080)
+        val state = TesseraState(dummySource, { decoder }, maxCacheSize = 150)
+
+        val result = state.initializeDecoder()
+
+        assertTrue(result is TesseraState.InitResult.Success)
+        assertEquals(1920, (result as TesseraState.InitResult.Success).info.width)
+        assertEquals(1080, result.info.height)
+        assertNotNull(result.preview)
+    }
+
+    @Test
+    fun initializeDecoder_failure_returnsErrorResult() {
+        val decoder = FakeRegionDecoder(shouldFailInit = true)
+        val state = TesseraState(dummySource, { decoder }, maxCacheSize = 150)
+
+        val result = state.initializeDecoder()
+
+        assertTrue(result is TesseraState.InitResult.Error)
+        assertTrue((result as TesseraState.InitResult.Error).message.contains("Fake init failure"))
+    }
+
+    @Test
+    fun applyInitResult_success_updatesComposeState() {
+        val decoder = FakeRegionDecoder(width = 2560, height = 1440)
+        val state = TesseraState(dummySource, { decoder }, maxCacheSize = 150)
+
+        assertTrue(state.isLoading)
+
+        val result = state.initializeDecoder()
+        state.applyInitResult(result)
+
+        assertFalse(state.isLoading)
+        assertNull(state.error)
+        assertNotNull(state.imageInfo)
+        assertEquals(2560, state.imageInfo!!.width)
+        assertNotNull(state.previewBitmap)
+    }
+
+    @Test
+    fun applyInitResult_error_setsErrorAndClearsDecoder() {
+        val decoder = FakeRegionDecoder(shouldFailInit = true)
+        val state = TesseraState(dummySource, { decoder }, maxCacheSize = 150)
+
+        val result = state.initializeDecoder()
+        state.applyInitResult(result)
+
+        assertFalse(state.isLoading)
+        assertNotNull(state.error)
+        assertNull(state.imageInfo)
+        // decodeTile should return null since decoder was cleared
+        assertNull(state.decodeTile(TileCoordinate(0, 0, 0)))
+    }
+
+    // --- decodeTile / cacheTile ---
+
+    @Test
+    fun decodeTile_returnsDecodedBitmap() {
+        val (state, _) = createInitializedState()
+
+        val bitmap = state.decodeTile(TileCoordinate(0, 0, 0))
+
+        assertNotNull(bitmap)
+        // Should NOT be cached (decodeTile does not cache)
+        assertNull(state.getCachedTile(TileCoordinate(0, 0, 0)))
+    }
+
+    @Test
+    fun decodeTile_afterDispose_returnsNull() {
+        val (state, _) = createInitializedState()
+        state.dispose()
+
+        assertNull(state.decodeTile(TileCoordinate(0, 0, 0)))
+    }
+
+    @Test
+    fun decodeTile_beforeInitialize_returnsNull() {
+        val state = TesseraState(dummySource, { FakeRegionDecoder() }, maxCacheSize = 150)
+
+        assertNull(state.decodeTile(TileCoordinate(0, 0, 0)))
+    }
+
+    @Test
+    fun cacheTile_storesInCache() {
+        val (state, _) = createInitializedState()
+        val coord = TileCoordinate(0, 0, 0)
+
+        val bitmap = state.decodeTile(coord)
+        assertNotNull(bitmap)
+
+        state.cacheTile(coord, bitmap)
+
+        assertNotNull(state.getCachedTile(coord))
+    }
+
+    @Test
+    fun cacheTile_respectsMaxCacheSize() {
+        val (state, _) = createInitializedState(maxCacheSize = 2)
+
+        val coords = (0 until 3).map { TileCoordinate(it, 0, 0) }
+        coords.forEach { coord ->
+            val bitmap = state.decodeTile(coord)!!
+            state.cacheTile(coord, bitmap)
+        }
+
+        // First tile should be evicted
+        assertNull(state.getCachedTile(coords[0]))
+        assertNotNull(state.getCachedTile(coords[2]))
+    }
+
+    @Test
+    fun cacheTile_thenLoadTile_returnsCachedWithoutDecode() {
+        val (state, decoder) = createInitializedState()
+        val coord = TileCoordinate(0, 0, 0)
+
+        val bitmap = state.decodeTile(coord)!!
+        state.cacheTile(coord, bitmap)
+        val countAfterCache = decoder.decodeTileCount
+
+        val result = state.loadTile(coord)
+        assertNotNull(result)
+        assertEquals(countAfterCache, decoder.decodeTileCount, "loadTile should use cache, not decode again")
+    }
+
+    @Test
+    fun loadTile_cacheHit_updatesAccessOrder() {
+        val (state, _) = createInitializedState(maxCacheSize = 2)
+
+        val coord0 = TileCoordinate(0, 0, 0)
+        val coord1 = TileCoordinate(1, 0, 0)
+        state.loadTile(coord0)
+        state.loadTile(coord1)
+
+        // Access coord0 via loadTile cache hit to refresh LRU
+        state.loadTile(coord0)
+
+        // Add new tile — should evict coord1 (least recent), not coord0
+        val coord2 = TileCoordinate(2, 0, 0)
+        state.loadTile(coord2)
+
+        assertNotNull(state.getCachedTile(coord0), "Recently accessed tile should survive")
+        assertNull(state.getCachedTile(coord1), "Least recently used tile should be evicted")
+    }
+
+    // --- getTileRect ---
+
     @Test
     fun getTileRect_beforeInitialize_returnsZeroRect() {
         val state = TesseraState(dummySource, { FakeRegionDecoder() }, maxCacheSize = 150)

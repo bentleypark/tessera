@@ -38,6 +38,12 @@ class TesseraState(
     var previewBitmap by mutableStateOf<ImageBitmap?>(null)
         private set
 
+    /** Synchronous init for testing and simple usage. Must be called on the main thread. */
+    fun initialize() {
+        val result = initializeDecoder()
+        applyInitResult(result)
+    }
+
     /**
      * Heavy initialization (file I/O + Skia decode). Safe to call from any thread.
      * Sets decoder and tileManager internally. Call [applyInitResult] on the main thread afterward
@@ -152,6 +158,12 @@ class TesseraState(
 
     /** Decode + cache in one call. Must be called on the main thread (writes Compose state). */
     fun loadTile(coordinate: TileCoordinate, cache: Boolean = true): ImageBitmap? {
+        val key = coordinate.toKey()
+        tileCache[key]?.let {
+            updateAccessOrder(key)
+            return it.first
+        }
+
         val bitmap = decodeTile(coordinate) ?: return null
         if (cache) cacheTile(coordinate, bitmap)
         return bitmap
