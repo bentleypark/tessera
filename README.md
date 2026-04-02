@@ -24,6 +24,7 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform that uses t
 - **Memory Efficient** — Subsample decoding + tile-based rendering, only visible tiles in memory
 - **1ms Tile Rendering** — Skia-optimized tile extraction averages 1-2ms per tile
 - **Smooth Gestures** — 60fps pinch-to-zoom, pan, and double-tap zoom
+- **Pager Ready** — HorizontalPager integration with smart gesture routing (swipe vs pan)
 - **Compose Native** — Built for Compose Multiplatform (not a View wrapper)
 - **LRU Tile Cache** — Automatic eviction with configurable cache size (default: 150 tiles)
 - **Multiple Image Sources** — Network URLs (http/https), local files (file://), Android content URIs, Android resources
@@ -220,7 +221,33 @@ This enables 108MP images on iPhone 7 (2GB RAM) by keeping only ~21MB in memory 
 | `imageLoader` | ImageLoaderStrategy? | `null` | Custom image loader (Coil, Glide, etc.) |
 | `contentDescription` | String? | `null` | Accessibility description |
 | `enableDismissGesture` | Boolean | `false` | Vertical drag-to-dismiss |
+| `enablePagerIntegration` | Boolean | `false` | Pass horizontal swipes to parent Pager |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
+
+### HorizontalPager Integration
+
+Tessera supports `HorizontalPager` for image gallery browsing:
+
+```kotlin
+val pagerState = rememberPagerState { images.size }
+
+HorizontalPager(state = pagerState) { page ->
+    TesseraImage(
+        imageUrl = images[page],
+        modifier = Modifier.fillMaxSize(),
+        enablePagerIntegration = true,  // Enable swipe between pages
+        enableDismissGesture = true
+    )
+}
+```
+
+**Gesture behavior with `enablePagerIntegration = true`:**
+
+| State | Horizontal Swipe | Pinch | Double-Tap | Vertical Swipe |
+|-------|-----------------|-------|------------|----------------|
+| Zoomed out (1.0x) | Next/prev page | Zoom in | Zoom to 3x | Dismiss (if enabled) |
+| Zoomed in (middle) | Pan image | Zoom | Zoom out | Pan image |
+| Zoomed in (at edge) | Next/prev page | Zoom | Zoom out | Pan image |
 
 ## Building
 

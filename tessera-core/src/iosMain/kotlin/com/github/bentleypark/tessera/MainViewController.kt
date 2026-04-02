@@ -2,8 +2,6 @@ package com.github.bentleypark.tessera
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -80,52 +83,79 @@ fun MainViewController(
 
 @Composable
 private fun SampleContent(imageLoader: ImageLoaderStrategy? = null) {
-    var selectedImage by remember { mutableStateOf<TestImage?>(null) }
+    var selectedIndex by remember { mutableIntStateOf(-1) }
 
-    if (selectedImage != null) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            TesseraImage(
-                imageUrl = selectedImage!!.url,
-                modifier = Modifier.fillMaxSize(),
-                imageLoader = imageLoader,
-                enableDismissGesture = true,
-                onDismiss = { selectedImage = null },
-                contentDescription = selectedImage!!.description
-            )
-            Text(
-                text = selectedImage!!.description,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 60.dp)
-                    .zIndex(1f)
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 8.dp, top = 4.dp)
-                    .zIndex(2f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable { selectedImage = null }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "< Back",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
+    if (selectedIndex >= 0) {
+        PagerGallery(
+            images = testImages,
+            initialPage = selectedIndex,
+            imageLoader = imageLoader,
+            onBack = { selectedIndex = -1 }
+        )
     } else {
-        ImageSelectionScreen(onSelect = { selectedImage = it })
+        ImageSelectionScreen(onSelect = { index -> selectedIndex = index })
     }
 }
 
 @Composable
-private fun ImageSelectionScreen(onSelect: (TestImage) -> Unit) {
+private fun PagerGallery(
+    images: List<TestImage>,
+    initialPage: Int,
+    imageLoader: ImageLoaderStrategy?,
+    onBack: () -> Unit
+) {
+    val pagerState = rememberPagerState(initialPage = initialPage) { images.size }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            TesseraImage(
+                imageUrl = images[page].url,
+                modifier = Modifier.fillMaxSize(),
+                imageLoader = imageLoader,
+                enableDismissGesture = true,
+                enablePagerIntegration = true,
+                onDismiss = onBack,
+                contentDescription = images[page].description
+            )
+        }
+
+        // Page indicator
+        Text(
+            text = "${pagerState.currentPage + 1} / ${images.size}  ${images[pagerState.currentPage].description}",
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 60.dp)
+                .zIndex(1f)
+        )
+
+        // Back button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 8.dp, top = 4.dp)
+                .zIndex(2f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { onBack() }
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = "< Back",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImageSelectionScreen(onSelect: (Int) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -149,14 +179,14 @@ private fun ImageSelectionScreen(onSelect: (TestImage) -> Unit) {
         )
         Spacer(modifier = Modifier.height(32.dp))
 
-        testImages.forEach { image ->
+        testImages.forEachIndexed { index, image ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 6.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF1E1E1E))
-                    .clickable { onSelect(image) }
+                    .clickable { onSelect(index) }
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -184,7 +214,7 @@ private fun ImageSelectionScreen(onSelect: (TestImage) -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = "Swipe down to dismiss and return",
+            text = "Swipe left/right to browse, pinch to zoom",
             color = Color.Gray,
             fontSize = 12.sp
         )

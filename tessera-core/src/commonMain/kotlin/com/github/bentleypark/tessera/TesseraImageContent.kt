@@ -2,8 +2,8 @@ package com.github.bentleypark.tessera
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -26,7 +26,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
@@ -259,167 +263,206 @@ internal fun TesseraImageContent(
             }
 
             else -> {
+                var lastTapTime by remember { mutableLongStateOf(0L) }
+                var lastTapOffset by remember { mutableStateOf(Offset.Zero) }
+
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { centroid, pan, zoom, _ ->
-                                // Dismiss gesture: vertical swipe down when zoomed out
-                                if (enableDismissGesture &&
-                                    scale <= zoomThreshold &&
-                                    zoom == 1f &&
-                                    abs(pan.y) > abs(pan.x) * 1.5 &&
-                                    pan.y > 0
-                                ) {
-                                    dismissOffsetY += pan.y
-                                    return@detectTransformGestures
-                                }
+                        .pointerInput(enablePagerIntegration, enableDismissGesture) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                var shouldConsume = !enablePagerIntegration
+                                var atEdge = false
+                                var totalPan = Offset.Zero
+                                val gestureStartTime = currentTimeMillis()
+                                val downPosition = down.position
 
-                                // Pager integration: pass horizontal pan when zoomed out
-                                val isHorizontalPan = abs(pan.x) > abs(pan.y)
-                                if (enablePagerIntegration && zoom == 1f && scale <= zoomThreshold && isHorizontalPan) {
-                                    return@detectTransformGestures
-                                }
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val changes = event.changes
 
-                                tesseraState?.imageInfo?.let { imageInfo ->
-                                    val imageWidth = imageInfo.width.toFloat()
-                                    val imageHeight = imageInfo.height.toFloat()
-                                    val viewWidth = size.width
-                                    val viewHeight = size.height
+                                    val activeChanges = changes.filter { it.pressed }
+                                    val zoom = if (activeChanges.size >= 2) {
+                                        val currentDist = (activeChanges[0].position - activeChanges[1].position).getDistance()
+                                        val prevDist = (activeChanges[0].previousPosition - activeChanges[1].previousPosition).getDistance()
+                                        if (prevDist > 0f) currentDist / prevDist else 1f
+                                    } else 1f
+                                    val pan = if (activeChanges.isNotEmpty()) {
+                                        val avgCurrent = activeChanges.fold(Offset.Zero) { acc, c -> acc + c.position } / activeChanges.size.toFloat()
+                                        val avgPrev = activeChanges.fold(Offset.Zero) { acc, c -> acc + c.previousPosition } / activeChanges.size.toFloat()
+                                        avgCurrent - avgPrev
+                                    } else Offset.Zero
+                                    val centroid = if (activeChanges.isNotEmpty()) {
+                                        activeChanges.fold(Offset.Zero) { acc, c -> acc + c.position } / activeChanges.size.toFloat()
+                                    } else Offset.Zero
+                                    totalPan += pan
 
-                                    val scaleX = viewWidth / imageWidth
-                                    val scaleY = viewHeight / imageHeight
-                                    val fitScale = minOf(scaleX, scaleY)
+                                    // Once at edge, stay in pass-through for rest of gesture
+                                    if (atEdge) continue
 
-                                    val oldTotalScale = fitScale * scale
-                                    val oldScaledWidth = imageWidth * oldTotalScale
-                                    val oldScaledHeight = imageHeight * oldTotalScale
-                                    val oldCenterX = (viewWidth - oldScaledWidth) / 2f
-                                    val oldCenterY = (viewHeight - oldScaledHeight) / 2f
-                                    val oldBaseOffset =
-                                        Offset(oldCenterX + offset.x, oldCenterY + offset.y)
-
-                                    val imagePointX = (centroid.x - oldBaseOffset.x) / oldTotalScale
-                                    val imagePointY = (centroid.y - oldBaseOffset.y) / oldTotalScale
-
-                                    val newScale = (scale * zoom).coerceIn(minScale, maxScale)
-                                    val newTotalScale = fitScale * newScale
-                                    val newScaledWidth = imageWidth * newTotalScale
-                                    val newScaledHeight = imageHeight * newTotalScale
-                                    val newCenterX = (viewWidth - newScaledWidth) / 2f
-                                    val newCenterY = (viewHeight - newScaledHeight) / 2f
-
-                                    val newBaseOffsetX = centroid.x - (imagePointX * newTotalScale)
-                                    val newBaseOffsetY = centroid.y - (imagePointY * newTotalScale)
-                                    val newOffsetX = newBaseOffsetX - newCenterX + pan.x
-                                    val newOffsetY = newBaseOffsetY - newCenterY + pan.y
-
-                                    val isZoomedIn = newScale > zoomThreshold
-                                    if (!isZoomedIn) {
-                                        offset = Offset.Zero
-                                        scale = minScale
-                                    } else {
-                                        val maxOffsetX = if (newScaledWidth > viewWidth) {
-                                            (newScaledWidth - viewWidth) / 2f
-                                        } else 0f
-
-                                        val maxOffsetY = if (newScaledHeight > viewHeight) {
-                                            (newScaledHeight - viewHeight) / 2f
-                                        } else 0f
-
-                                        // Pager integration: at image edge, pass horizontal pan
-                                        if (enablePagerIntegration && isHorizontalPan && zoom == 1f) {
-                                            val atLeftEdge = offset.x >= maxOffsetX && pan.x > 0
-                                            val atRightEdge = offset.x <= -maxOffsetX && pan.x < 0
-                                            if (atLeftEdge || atRightEdge) {
-                                                return@detectTransformGestures
-                                            }
-                                        }
-
-                                        offset = Offset(
-                                            x = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX),
-                                            y = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
-                                        )
-                                        scale = newScale
+                                    // Determine if we should consume
+                                    if (enablePagerIntegration && !shouldConsume) {
+                                        val isPinch = zoom != 1f
+                                        val isVerticalPan = abs(totalPan.y) > abs(totalPan.x)
+                                        val isZoomedIn = scale > zoomThreshold
+                                        shouldConsume = isPinch || isVerticalPan || isZoomedIn
                                     }
-                                } ?: run {
-                                    val newScale = (scale * zoom).coerceIn(minScale, maxScale)
-                                    if (newScale > zoomThreshold) {
-                                        offset += pan
-                                        scale = newScale
-                                    } else {
-                                        offset = Offset.Zero
-                                        scale = minScale
-                                    }
-                                }
-                            }
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = { tapOffset ->
-                                    if (scale > 1f) {
-                                        scale = 1f
-                                        offset = Offset.Zero
-                                    } else {
-                                        tesseraState?.imageInfo?.let { imageInfo ->
+
+                                    if (!shouldConsume) continue
+
+                                    // Check edge BEFORE consuming
+                                    tesseraState?.imageInfo?.let { imageInfo ->
+                                        if (enablePagerIntegration && scale > zoomThreshold &&
+                                            abs(pan.x) > abs(pan.y) && zoom == 1f
+                                        ) {
                                             val imageWidth = imageInfo.width.toFloat()
                                             val imageHeight = imageInfo.height.toFloat()
                                             val viewWidth = size.width
                                             val viewHeight = size.height
+                                            val fitScale = minOf(viewWidth / imageWidth, viewHeight / imageHeight)
+                                            val totalScale = fitScale * scale
+                                            val scaledWidth = imageWidth * totalScale
+                                            val maxOffsetX = if (scaledWidth > viewWidth) (scaledWidth - viewWidth) / 2f else 0f
 
-                                            val scaleX = viewWidth / imageWidth
-                                            val scaleY = viewHeight / imageHeight
-                                            val fitScale = minOf(scaleX, scaleY)
+                                            val leftEdge = offset.x >= maxOffsetX - 1f && pan.x > 0
+                                            val rightEdge = offset.x <= -maxOffsetX + 1f && pan.x < 0
+                                            if (leftEdge || rightEdge) {
+                                                atEdge = true
+                                                continue
+                                            }
+                                        }
+                                    }
 
-                                            val currentTotalScale = fitScale * scale
-                                            val targetScale = 3f
-                                            val targetTotalScale = fitScale * targetScale
+                                    // Consume pointer changes
+                                    changes.fastForEach { if (it.positionChanged()) it.consume() }
 
-                                            val scaledWidth = imageWidth * currentTotalScale
-                                            val scaledHeight = imageHeight * currentTotalScale
-                                            val centerX = (viewWidth - scaledWidth) / 2f
-                                            val centerY = (viewHeight - scaledHeight) / 2f
-                                            val currentBaseOffset =
-                                                Offset(centerX + offset.x, centerY + offset.y)
+                                    // Dismiss gesture
+                                    if (enableDismissGesture &&
+                                        scale <= zoomThreshold &&
+                                        zoom == 1f &&
+                                        abs(pan.y) > abs(pan.x) * 1.5 &&
+                                        pan.y > 0
+                                    ) {
+                                        dismissOffsetY += pan.y
+                                        continue
+                                    }
 
-                                            val tapXInImage =
-                                                (tapOffset.x - currentBaseOffset.x) / currentTotalScale
-                                            val tapYInImage =
-                                                (tapOffset.y - currentBaseOffset.y) / currentTotalScale
+                                    // Transform gesture
+                                    tesseraState?.imageInfo?.let { imageInfo ->
+                                        val imageWidth = imageInfo.width.toFloat()
+                                        val imageHeight = imageInfo.height.toFloat()
+                                        val viewWidth = size.width
+                                        val viewHeight = size.height
 
-                                            val targetScaledWidth = imageWidth * targetTotalScale
-                                            val targetScaledHeight = imageHeight * targetTotalScale
-                                            val targetCenterX = (viewWidth - targetScaledWidth) / 2f
-                                            val targetCenterY =
-                                                (viewHeight - targetScaledHeight) / 2f
+                                        val scaleX = viewWidth / imageWidth
+                                        val scaleY = viewHeight / imageHeight
+                                        val fitScale = minOf(scaleX, scaleY)
 
-                                            val targetTapXInScreen =
-                                                targetCenterX + (tapXInImage * targetTotalScale)
-                                            val targetTapYInScreen =
-                                                targetCenterY + (tapYInImage * targetTotalScale)
+                                        val oldTotalScale = fitScale * scale
+                                        val oldScaledWidth = imageWidth * oldTotalScale
+                                        val oldScaledHeight = imageHeight * oldTotalScale
+                                        val oldCenterX = (viewWidth - oldScaledWidth) / 2f
+                                        val oldCenterY = (viewHeight - oldScaledHeight) / 2f
+                                        val oldBaseOffset =
+                                            Offset(oldCenterX + offset.x, oldCenterY + offset.y)
 
-                                            val newOffsetX = (viewWidth / 2f - targetTapXInScreen)
-                                            val newOffsetY = (viewHeight / 2f - targetTapYInScreen)
+                                        val imagePointX = (centroid.x - oldBaseOffset.x) / oldTotalScale
+                                        val imagePointY = (centroid.y - oldBaseOffset.y) / oldTotalScale
 
-                                            val maxOffsetX = if (targetScaledWidth > viewWidth) {
-                                                (targetScaledWidth - viewWidth) / 2f
+                                        val newScale = (scale * zoom).coerceIn(minScale, maxScale)
+                                        val newTotalScale = fitScale * newScale
+                                        val newScaledWidth = imageWidth * newTotalScale
+                                        val newScaledHeight = imageHeight * newTotalScale
+                                        val newCenterX = (viewWidth - newScaledWidth) / 2f
+                                        val newCenterY = (viewHeight - newScaledHeight) / 2f
+
+                                        val newBaseOffsetX = centroid.x - (imagePointX * newTotalScale)
+                                        val newBaseOffsetY = centroid.y - (imagePointY * newTotalScale)
+                                        val newOffsetX = newBaseOffsetX - newCenterX + pan.x
+                                        val newOffsetY = newBaseOffsetY - newCenterY + pan.y
+
+                                        val isZoomedIn = newScale > zoomThreshold
+                                        if (!isZoomedIn) {
+                                            offset = Offset.Zero
+                                            scale = minScale
+                                        } else {
+                                            val maxOffsetX = if (newScaledWidth > viewWidth) {
+                                                (newScaledWidth - viewWidth) / 2f
                                             } else 0f
 
-                                            val maxOffsetY = if (targetScaledHeight > viewHeight) {
-                                                (targetScaledHeight - viewHeight) / 2f
+                                            val maxOffsetY = if (newScaledHeight > viewHeight) {
+                                                (newScaledHeight - viewHeight) / 2f
                                             } else 0f
 
                                             offset = Offset(
                                                 x = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX),
                                                 y = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
                                             )
-                                            scale = targetScale
-                                        } ?: run {
-                                            scale = 3f
+                                            scale = newScale
+                                        }
+                                    } ?: run {
+                                        val newScale = (scale * zoom).coerceIn(minScale, maxScale)
+                                        if (newScale > zoomThreshold) {
+                                            offset += pan
+                                            scale = newScale
+                                        } else {
+                                            offset = Offset.Zero
+                                            scale = minScale
                                         }
                                     }
+                                } while (changes.fastAny { it.pressed })
+
+                                // Double-tap detection: short gesture with no significant pan
+                                val gestureDuration = currentTimeMillis() - gestureStartTime
+                                val totalDistance = totalPan.getDistance()
+                                if (gestureDuration < 300 && totalDistance < 20f) {
+                                    val now = currentTimeMillis()
+                                    val tapDelta = (downPosition - lastTapOffset).getDistance()
+                                    if (now - lastTapTime < 400 && tapDelta < 100f) {
+                                        // Double tap detected
+                                        lastTapTime = 0L
+                                        val tapOffset = downPosition
+                                        if (scale > 1f) {
+                                            scale = 1f
+                                            offset = Offset.Zero
+                                        } else {
+                                            tesseraState?.imageInfo?.let { imageInfo ->
+                                                val imageWidth = imageInfo.width.toFloat()
+                                                val imageHeight = imageInfo.height.toFloat()
+                                                val viewWidth = size.width
+                                                val viewHeight = size.height
+                                                val scaleX = viewWidth / imageWidth
+                                                val scaleY = viewHeight / imageHeight
+                                                val fitScale = minOf(scaleX, scaleY)
+                                                val currentTotalScale = fitScale * scale
+                                                val targetScale = 3f
+                                                val targetTotalScale = fitScale * targetScale
+                                                val scaledWidth = imageWidth * currentTotalScale
+                                                val scaledHeight = imageHeight * currentTotalScale
+                                                val centerX = (viewWidth - scaledWidth) / 2f
+                                                val centerY = (viewHeight - scaledHeight) / 2f
+                                                val baseOff = Offset(centerX + offset.x, centerY + offset.y)
+                                                val tapX = (tapOffset.x - baseOff.x) / currentTotalScale
+                                                val tapY = (tapOffset.y - baseOff.y) / currentTotalScale
+                                                val tgtW = imageWidth * targetTotalScale
+                                                val tgtH = imageHeight * targetTotalScale
+                                                val tgtCX = (viewWidth - tgtW) / 2f
+                                                val tgtCY = (viewHeight - tgtH) / 2f
+                                                val newOX = viewWidth / 2f - (tgtCX + tapX * targetTotalScale)
+                                                val newOY = viewHeight / 2f - (tgtCY + tapY * targetTotalScale)
+                                                val maxOX = if (tgtW > viewWidth) (tgtW - viewWidth) / 2f else 0f
+                                                val maxOY = if (tgtH > viewHeight) (tgtH - viewHeight) / 2f else 0f
+                                                offset = Offset(newOX.coerceIn(-maxOX, maxOX), newOY.coerceIn(-maxOY, maxOY))
+                                                scale = targetScale
+                                            } ?: run { scale = 3f }
+                                        }
+                                    } else {
+                                        lastTapTime = now
+                                        lastTapOffset = downPosition
+                                    }
                                 }
-                            )
+                            }
                         }
                 ) {
                     drawRect(
