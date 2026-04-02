@@ -25,6 +25,7 @@ fun TesseraImage(
     imageLoader: ImageLoaderStrategy? = null,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
+    enablePagerIntegration: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: IosImageLoader() }
@@ -40,6 +41,7 @@ fun TesseraImage(
         decoderFactory = decoderFactory,
         contentDescription = contentDescription,
         enableDismissGesture = enableDismissGesture,
+        enablePagerIntegration = enablePagerIntegration,
         onDismiss = onDismiss
     )
 }

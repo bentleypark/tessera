@@ -56,6 +56,7 @@ internal fun TesseraImageContent(
     decoderFactory: (ImageSource) -> RegionDecoder,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
+    enablePagerIntegration: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
@@ -263,6 +264,7 @@ internal fun TesseraImageContent(
                         .fillMaxSize()
                         .pointerInput(Unit) {
                             detectTransformGestures { centroid, pan, zoom, _ ->
+                                // Dismiss gesture: vertical swipe down when zoomed out
                                 if (enableDismissGesture &&
                                     scale <= zoomThreshold &&
                                     zoom == 1f &&
@@ -270,6 +272,12 @@ internal fun TesseraImageContent(
                                     pan.y > 0
                                 ) {
                                     dismissOffsetY += pan.y
+                                    return@detectTransformGestures
+                                }
+
+                                // Pager integration: pass horizontal pan when zoomed out
+                                val isHorizontalPan = abs(pan.x) > abs(pan.y)
+                                if (enablePagerIntegration && zoom == 1f && scale <= zoomThreshold && isHorizontalPan) {
                                     return@detectTransformGestures
                                 }
 
@@ -318,6 +326,15 @@ internal fun TesseraImageContent(
                                         val maxOffsetY = if (newScaledHeight > viewHeight) {
                                             (newScaledHeight - viewHeight) / 2f
                                         } else 0f
+
+                                        // Pager integration: at image edge, pass horizontal pan
+                                        if (enablePagerIntegration && isHorizontalPan && zoom == 1f) {
+                                            val atLeftEdge = offset.x >= maxOffsetX && pan.x > 0
+                                            val atRightEdge = offset.x <= -maxOffsetX && pan.x < 0
+                                            if (atLeftEdge || atRightEdge) {
+                                                return@detectTransformGestures
+                                            }
+                                        }
 
                                         offset = Offset(
                                             x = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX),

@@ -28,6 +28,7 @@ fun TesseraImage(
     imageLoader: ImageLoaderStrategy? = null,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
+    enablePagerIntegration: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -44,6 +45,7 @@ fun TesseraImage(
         decoderFactory = decoderFactory,
         contentDescription = contentDescription,
         enableDismissGesture = enableDismissGesture,
+        enablePagerIntegration = enablePagerIntegration,
         onDismiss = onDismiss
     )
 }
@@ -62,6 +64,7 @@ fun TesseraImage(
     imageLoader: ImageLoaderStrategy? = null,
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
+    enablePagerIntegration: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -79,6 +82,7 @@ fun TesseraImage(
         decoderFactory = decoderFactory,
         contentDescription = contentDescription,
         enableDismissGesture = enableDismissGesture,
+        enablePagerIntegration = enablePagerIntegration,
         onDismiss = onDismiss
     )
 }
