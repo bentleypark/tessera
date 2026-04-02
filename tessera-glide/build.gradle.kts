@@ -8,7 +8,7 @@ group = "com.github.bentleypark.tessera"
 version = "0.1.0"
 
 android {
-    namespace = "com.naemomlab.tessera.glide"
+    namespace = "com.github.bentleypark.tessera.glide"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

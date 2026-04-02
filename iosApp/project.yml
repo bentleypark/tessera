@@ -1,6 +1,6 @@
 name: iosApp
 options:
-  bundleIdPrefix: com.naemomlab.tessera
+  bundleIdPrefix: com.github.bentleypark.tessera
   deploymentTarget:
     iOS: "15.0"
 

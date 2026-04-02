@@ -6,7 +6,7 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Tessera: Keep public API
--keep public class com.naemomlab.tessera.** { *; }
+-keep public class com.github.bentleypark.tessera.** { *; }
 
 # Keep Compose runtime
 -keepclassmembers class androidx.compose.** { *; }

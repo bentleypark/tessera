@@ -65,7 +65,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.naemomlab.tessera"
+    namespace = "com.github.bentleypark.tessera"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {

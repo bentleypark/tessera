@@ -6,11 +6,11 @@ plugins {
 
 @Suppress("DEPRECATION")
 android {
-    namespace = "com.naemomlab.tessera.sample"
+    namespace = "com.github.bentleypark.tessera.sample"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.naemomlab.tessera.sample"
+        applicationId = "com.github.bentleypark.tessera.sample"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1

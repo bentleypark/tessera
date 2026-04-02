@@ -50,7 +50,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.naemomlab.tessera.coil"
+    namespace = "com.github.bentleypark.tessera.coil"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
