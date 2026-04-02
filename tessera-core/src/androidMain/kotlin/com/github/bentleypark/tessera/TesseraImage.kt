@@ -31,6 +31,7 @@ fun TesseraImage(
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
+    showScrollIndicators: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -49,6 +50,7 @@ fun TesseraImage(
         contentDescription = contentDescription,
         enableDismissGesture = enableDismissGesture,
         enablePagerIntegration = enablePagerIntegration,
+        showScrollIndicators = showScrollIndicators,
         onDismiss = onDismiss
     )
 }
@@ -69,6 +71,7 @@ fun TesseraImage(
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
+    showScrollIndicators: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -88,6 +91,7 @@ fun TesseraImage(
         contentDescription = contentDescription,
         enableDismissGesture = enableDismissGesture,
         enablePagerIntegration = enablePagerIntegration,
+        showScrollIndicators = showScrollIndicators,
         onDismiss = onDismiss
     )
 }

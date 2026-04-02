@@ -173,6 +173,7 @@ private fun PagerGallery(
                 imageLoader = imageLoader,
                 enableDismissGesture = isFitMode,
                 enablePagerIntegration = isFitMode,
+                showScrollIndicators = true,
                 onDismiss = onBack,
                 contentDescription = images[page].description
             )

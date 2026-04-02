@@ -22,10 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -62,6 +65,7 @@ internal fun TesseraImageContent(
     contentDescription: String? = null,
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
+    showScrollIndicators: Boolean = false,
     onDismiss: () -> Unit = {}
 ) {
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
@@ -73,6 +77,7 @@ internal fun TesseraImageContent(
     val zoomThreshold = 1.01f
     var currentTime by remember { mutableLongStateOf(currentTimeMillis()) }
     var isDismissing by remember { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableLongStateOf(0L) }
 
     var dismissOffsetY by remember { mutableFloatStateOf(0f) }
     val semanticsModifier = if (contentDescription != null) {
@@ -337,6 +342,7 @@ internal fun TesseraImageContent(
 
                                     // Consume pointer changes
                                     changes.fastForEach { if (it.positionChanged()) it.consume() }
+                                    if (showScrollIndicators) lastInteractionTime = currentTimeMillis()
 
                                     // Dismiss gesture
                                     if (enableDismissGesture &&
@@ -473,6 +479,7 @@ internal fun TesseraImageContent(
                                                 val maxOY = if (tgtH > viewHeight) (tgtH - viewHeight) / 2f else 0f
                                                 offset = Offset(newOX.coerceIn(-maxOX, maxOX), newOY.coerceIn(-maxOY, maxOY))
                                                 scale = targetScale
+                                                if (showScrollIndicators) lastInteractionTime = currentTimeMillis()
                                             } ?: run { scale = 3f }
                                         }
                                     } else {
@@ -571,6 +578,46 @@ internal fun TesseraImageContent(
                                     )
                                 }
                             }
+
+                        // Scroll indicators
+                        if (showScrollIndicators && scale > zoomThreshold) {
+                            val fadeOutDelay = 1500L
+                            val fadeOutDuration = 500L
+                            val elapsed = currentTime - lastInteractionTime
+                            val indicatorAlpha = when {
+                                lastInteractionTime == 0L -> 0f
+                                elapsed < fadeOutDelay -> 0.6f
+                                elapsed < fadeOutDelay + fadeOutDuration -> {
+                                    0.6f * (1f - (elapsed - fadeOutDelay).toFloat() / fadeOutDuration)
+                                }
+                                else -> 0f
+                            }
+
+                            if (indicatorAlpha > 0f) {
+                                drawScrollIndicators(
+                                    scaledWidth = scaledWidth,
+                                    scaledHeight = scaledHeight,
+                                    baseOffset = baseOffset,
+                                    canvasWidth = size.width,
+                                    canvasHeight = size.height,
+                                    alpha = indicatorAlpha
+                                )
+
+                                state.previewBitmap?.let { preview ->
+                                    drawMinimap(
+                                        preview = preview,
+                                        imageWidth = imageWidth,
+                                        imageHeight = imageHeight,
+                                        scaledWidth = scaledWidth,
+                                        scaledHeight = scaledHeight,
+                                        baseOffset = baseOffset,
+                                        canvasWidth = size.width,
+                                        canvasHeight = size.height,
+                                        alpha = indicatorAlpha
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -652,5 +699,120 @@ private fun DrawScope.drawTileWithRect(
             height = ceil(screenHeight).toInt()
         ),
         alpha = alpha
+    )
+}
+
+private fun DrawScope.drawScrollIndicators(
+    scaledWidth: Float,
+    scaledHeight: Float,
+    baseOffset: Offset,
+    canvasWidth: Float,
+    canvasHeight: Float,
+    alpha: Float
+) {
+    val barThickness = 4f
+    val barMargin = 6f
+    val minBarLength = 24f
+    val cornerRadius = 2f
+    val barColor = Color.White.copy(alpha = alpha)
+
+    // Vertical scroll bar (right edge)
+    if (scaledHeight > canvasHeight + 1f) {
+        val viewportTop = (-baseOffset.y).coerceAtLeast(0f)
+        val visibleRatio = canvasHeight / scaledHeight
+        val positionRatio = viewportTop / (scaledHeight - canvasHeight)
+
+        val trackHeight = canvasHeight - barMargin * 2
+        val thumbHeight = (trackHeight * visibleRatio).coerceAtLeast(minBarLength)
+        val thumbY = barMargin + (trackHeight - thumbHeight) * positionRatio.coerceIn(0f, 1f)
+        val thumbX = canvasWidth - barThickness - barMargin
+
+        drawRoundRect(
+            color = barColor,
+            topLeft = Offset(thumbX, thumbY),
+            size = Size(barThickness, thumbHeight),
+            cornerRadius = CornerRadius(cornerRadius)
+        )
+    }
+
+    // Horizontal scroll bar (bottom edge)
+    if (scaledWidth > canvasWidth + 1f) {
+        val viewportLeft = (-baseOffset.x).coerceAtLeast(0f)
+        val visibleRatio = canvasWidth / scaledWidth
+        val positionRatio = viewportLeft / (scaledWidth - canvasWidth)
+
+        val trackWidth = canvasWidth - barMargin * 2
+        val thumbWidth = (trackWidth * visibleRatio).coerceAtLeast(minBarLength)
+        val thumbX = barMargin + (trackWidth - thumbWidth) * positionRatio.coerceIn(0f, 1f)
+        val thumbY = canvasHeight - barThickness - barMargin
+
+        drawRoundRect(
+            color = barColor,
+            topLeft = Offset(thumbX, thumbY),
+            size = Size(thumbWidth, barThickness),
+            cornerRadius = CornerRadius(cornerRadius)
+        )
+    }
+}
+
+private fun DrawScope.drawMinimap(
+    preview: ImageBitmap,
+    imageWidth: Float,
+    imageHeight: Float,
+    scaledWidth: Float,
+    scaledHeight: Float,
+    baseOffset: Offset,
+    canvasWidth: Float,
+    canvasHeight: Float,
+    alpha: Float
+) {
+    val minimapMaxSize = 140f
+    val minimapMargin = 12f
+    val borderWidth = 1f
+
+    // Calculate minimap dimensions preserving aspect ratio
+    val imageAspect = imageWidth / imageHeight
+    val minimapWidth: Float
+    val minimapHeight: Float
+    if (imageAspect > 1f) {
+        minimapWidth = minimapMaxSize
+        minimapHeight = minimapMaxSize / imageAspect
+    } else {
+        minimapHeight = minimapMaxSize
+        minimapWidth = minimapMaxSize * imageAspect
+    }
+
+    // Position: bottom-left corner
+    val minimapX = minimapMargin
+    val minimapY = canvasHeight - minimapHeight - minimapMargin
+
+    // Draw background
+    drawRoundRect(
+        color = Color.Black.copy(alpha = alpha * 0.7f),
+        topLeft = Offset(minimapX - 2f, minimapY - 2f),
+        size = Size(minimapWidth + 4f, minimapHeight + 4f),
+        cornerRadius = CornerRadius(4f)
+    )
+
+    // Draw preview thumbnail
+    drawImage(
+        image = preview,
+        dstOffset = IntOffset(minimapX.toInt(), minimapY.toInt()),
+        dstSize = IntSize(minimapWidth.toInt(), minimapHeight.toInt()),
+        alpha = alpha
+    )
+
+    // Calculate viewport rectangle on minimap
+    val viewportLeft = ((-baseOffset.x).coerceAtLeast(0f) / scaledWidth * minimapWidth)
+    val viewportTop = ((-baseOffset.y).coerceAtLeast(0f) / scaledHeight * minimapHeight)
+    val viewportW = (canvasWidth / scaledWidth * minimapWidth).coerceAtMost(minimapWidth - viewportLeft)
+    val viewportH = (canvasHeight / scaledHeight * minimapHeight).coerceAtMost(minimapHeight - viewportTop)
+
+    // Draw viewport rectangle
+    drawRect(
+        color = Color.White.copy(alpha = alpha * 0.8f),
+        topLeft = Offset(minimapX + viewportLeft, minimapY + viewportTop),
+        size = Size(viewportW, viewportH),
+        style = Stroke(width = borderWidth)
     )
 }

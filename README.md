@@ -213,6 +213,7 @@ This enables 108MP images on iPhone 7 (2GB RAM) by keeping only ~21MB in memory 
 | `contentDescription` | String? | `null` | Accessibility description |
 | `enableDismissGesture` | Boolean | `false` | Vertical drag-to-dismiss |
 | `enablePagerIntegration` | Boolean | `false` | Pass horizontal swipes to parent Pager |
+| `showScrollIndicators` | Boolean | `false` | Show scroll position indicators when zoomed |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
 
 ### HorizontalPager Integration
