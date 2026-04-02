@@ -28,6 +28,9 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform that uses t
 - **Compose Native** — Built for Compose Multiplatform (not a View wrapper)
 - **LRU Tile Cache** — Automatic eviction with configurable cache size (default: 150 tiles)
 - **Multiple Image Sources** — Network URLs (http/https), local files (file://), Android content URIs, Android resources
+- **EXIF Orientation** — Automatic rotation/mirror correction for all 8 EXIF orientations
+- **ReadMode** — Auto-detect tall/wide images with FitWidth/FitHeight content scaling
+- **Scroll Indicators** — Minimap + scroll bars for zoomed-in navigation (auto-hide)
 - **Zero Core Dependencies** — `tessera-core` has no external image library dependencies
 - **Optional Loaders** — `tessera-coil` (KMP) and `tessera-glide` (Android) companion modules
 
