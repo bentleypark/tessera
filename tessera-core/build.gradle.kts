@@ -35,8 +35,7 @@ kotlin {
         }
     }
 
-    // Desktop target (Phase 4)
-    // jvm("desktop")
+    jvm("desktop")
 
     sourceSets {
         commonMain.dependencies {
@@ -58,6 +57,13 @@ kotlin {
                 implementation(libs.timber)
                 implementation(libs.compose.ui.test.junit4)
                 implementation(libs.compose.ui.test.manifest)
+            }
+        }
+
+        val desktopMain by getting {
+            dependencies {
+                implementation(compose.desktop.common)
+                implementation(libs.coroutines.core)
             }
         }
 
