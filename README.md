@@ -8,16 +8,16 @@
 
 ## Overview
 
-Tessera is a memory-efficient image viewer for Compose Multiplatform that uses tile-based rendering to display large, high-resolution images (up to 108MP+) without loading the entire image into memory.
+Tessera is a memory-efficient image viewer for Compose Multiplatform. It uses tile-based rendering and platform-native decoders to handle images up to 108MP+ — keeping memory usage up to 95% lower than full-image loading.
 
 ### Supported Platforms
 
-| Platform | Status | Decoder Strategy |
-|----------|--------|-----------------|
-| Android  | Stable | BitmapRegionDecoder (true region decoding) |
-| iOS      | Stable | CGImageSource subsample + Skia tile extraction |
-| Desktop  | Stable | ImageIO subsample cache + tile extraction |
-| Web      | Experimental | Skia Surface + drawImageRect (Kotlin/Wasm) |
+| Platform | Status | Decoder | Memory Tier |
+|----------|--------|---------|-------------|
+| Android  | Stable | BitmapRegionDecoder | Tier 1 — partial decode |
+| iOS      | Stable | CGImageSource + Skia | Tier 2 — subsample + crop |
+| Desktop  | Stable | ImageIO + Skia | Tier 2 — subsample + crop |
+| Web      | Experimental | Skia (Kotlin/Wasm) | Tier 3 — full decode (~30MP) |
 
 ### Key Features
 
@@ -28,12 +28,29 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform that uses t
 - **Pager Ready** — HorizontalPager integration with smart gesture routing (swipe vs pan)
 - **Compose Native** — Built for Compose Multiplatform (not a View wrapper)
 - **LRU Tile Cache** — Automatic eviction with configurable cache size (default: 150 tiles)
-- **Multiple Image Sources** — Network URLs (http/https), local files (file://), Android content URIs, Android resources
+- **Multiple Image Sources** — Network URLs, local files, Android content URIs and resources
 - **EXIF Orientation** — Automatic rotation/mirror correction for all 8 EXIF orientations
 - **ReadMode** — Auto-detect tall/wide images with FitWidth/FitHeight content scaling
 - **Scroll Indicators** — Minimap + scroll bars for zoomed-in navigation (auto-hide)
 - **Zero Core Dependencies** — `tessera-core` has no external image library dependencies
 - **Optional Loaders** — `tessera-coil` (KMP) and `tessera-glide` (Android) companion modules
+
+### Platform Feature Matrix
+
+| Feature | Android | iOS | Desktop | Web |
+|---------|---------|-----|---------|-----|
+| Network URLs (http/https) | ✅ | ✅ | ✅ | ✅ |
+| Local files (file://) | ✅ | ✅ (sandbox only) | ✅ | ❌ |
+| Content URIs / Resources | ✅ | ❌ | ❌ | ❌ |
+| EXIF orientation (8 directions) | ✅ | ✅ | ✅ | ❌ |
+| Pinch-to-zoom / Pan | ✅ | ✅ | ✅ | ✅ |
+| Double-tap zoom | ✅ | ✅ | ✅ | ✅ |
+| Ctrl/Cmd + Scroll zoom | — | — | ✅ | ❌ |
+| HorizontalPager integration | ✅ | ✅ | ❌ | ❌ |
+| Drag-to-dismiss | ✅ | ✅ | ❌ | ❌ |
+| Scroll indicators / Minimap | ✅ | ✅ | ✅ | ✅ |
+| ReadMode (ContentScale) | ✅ | ✅ | ✅ | ✅ |
+| LRU tile cache | ✅ | ✅ | ✅ | ✅ |
 
 ## Quick Start
 
@@ -146,7 +163,7 @@ fun main() {
 }
 ```
 
-> **Note**: Web support is experimental (Kotlin/Wasm). Full image is loaded into memory — suitable for images up to ~30MP in typical browser environments.
+> **Note**: Web support is experimental (Kotlin/Wasm). Unlike Android/iOS/Desktop which use partial or subsampled decoding, the web decoder loads the entire image into memory (no browser partial decode API). Practical limit is ~30MP (2–4 GB JS heap). For larger images, consider server-side tile generation.
 
 ## Performance
 
@@ -167,7 +184,19 @@ Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
 | 8K | ~134MB | ~37MB | **72%** |
 | 108MP | ~432MB | ~21MB | **95%** |
 
-> **Note**: No other tile-based image viewer library publishes quantitative benchmarks. Tessera is the first to provide reproducible, multi-run performance data.
+> Benchmarks run on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5), 5 runs each. All benchmarks use JPEG images. Android benchmarks in progress.
+
+### Supported Image Formats
+
+| Format | Android | iOS | Desktop | Web |
+|--------|---------|-----|---------|-----|
+| JPEG | ✅ (optimized partial decode) | ✅ | ✅ | ✅ |
+| PNG | ✅ | ✅ | ✅ | ✅ |
+| WebP | ✅ | ✅ (Skia) | ❌ (native JDK limitation) | ✅ (Skia) |
+| GIF | ✅ (first frame only) | ✅ (first frame only) | ✅ (first frame only) | ✅ (first frame only) |
+| HEIF/HEIC | ✅ (API 31+) | ✅ | ❌ (JVM limitation) | ❌ |
+
+> JPEG provides the best performance across all platforms due to its block-based compression structure. PNG, WebP, and other formats are supported but may have higher memory overhead during decoding. GIF animation is not supported — only the first frame is displayed.
 
 ## Modules
 
@@ -219,20 +248,36 @@ RegionDecoder (expect/actual)       <- Platform Decoding
   |-- Web: Skia Image.makeFromEncoded + Surface.drawImageRect
 ```
 
-### iOS Decoder: CGImageSource + Skia Hybrid
+### Decoding Architecture
 
-Unlike loading the entire image into memory, the iOS decoder uses a two-phase approach:
+Three distinct decoding tiers exist across platforms:
 
-1. **CGImageSource** with `kCGImageSourceSubsampleFactor` decodes at reduced resolution (1/2, 1/4, 1/8) using JPEG's DCT block structure
-2. **Skia `Canvas.drawImageRect`** extracts tiles from the subsampled image at ~1ms per tile
+**Tier 1 — Partial Decode**
+- **Android**: `BitmapRegionDecoder` requests only the tile region from the decoder. Memory efficiency is highest with JPEG (DCT block structure); PNG and other formats may incur higher internal overhead depending on Android's codec implementation.
 
-This enables 108MP images on iPhone 7 (2GB RAM) by keeping only ~21MB in memory at zoom level 0.
+**Tier 2 — Subsample Full Decode + Tile Extraction**
+- **iOS**: `CGImageSource` with `kCGImageSourceSubsampleFactor` decodes at 1/2, 1/4, or 1/8 resolution (JPEG only; PNG and other formats are not subsampled). Skia `drawImageRect` extracts tiles at ~1ms each. 108MP JPEG → ~6.7MP in memory (~21MB).
+- **Desktop**: `ImageIO` with `setSourceSubsampling` decodes at reduced resolution (JPEG only; PNG subsampling is ignored by most JDK implementations). Cached `BufferedImage` serves tiles via `getSubimage`. Same memory profile as iOS for JPEG.
 
-### Memory Protection
+**Tier 3 — Full Decode + Tile Extraction**
+- **Web**: Browsers provide no partial image decode API. The entire image is decoded into memory via `Image.makeFromEncoded`, then tiles are extracted via Skia `Surface.drawImageRect`.
+
+| Platform | Strategy | Memory (108MP) | Max Practical Size |
+|----------|----------|---------------|-------------------|
+| Android | Partial decode (tile only) | ~0.25MB per tile (JPEG) | Unlimited |
+| iOS | Subsample 1/4 → tile crop | ~21MB | 108MP+ |
+| Desktop | Subsample cache → tile crop | ~21MB | 108MP+ |
+| Web | Full decode → tile crop | ~432MB | ~30MP |
+
+> **Web limitation**: The 30MP practical limit is a fundamental browser constraint (2–4 GB JS heap), not a Tessera limitation. For images larger than 30MP on web, server-side tile generation is the recommended approach. Web support functions as a **zoom viewer** rather than a true tile-based viewer.
+
+### Memory Protection (iOS / Desktop)
+
+> Android uses `BitmapRegionDecoder` (true partial decode), so no subsampling step is needed — memory stays at tile level (~0.25MB per 256×256 tile) regardless of image size.
 
 | Image Size | Max Subsample | Decoded Resolution | Memory |
 |------------|--------------|-------------------|--------|
-| < 30MP | 1 (full) | Original | No limit |
+| < 30MP | 1 (full) | Original | Full resolution (~120MB at 30MP) |
 | 30-80MP | 2 (half) | 1/2 | ~1/4 |
 | 80MP+ | 4 (quarter) | 1/4 | ~1/16 |
 
