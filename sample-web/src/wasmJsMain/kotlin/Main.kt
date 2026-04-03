@@ -40,6 +40,7 @@ fun main() {
     CanvasBasedWindow(title = "Tessera Web Sample", canvasElementId = "ComposeTarget") {
         MaterialTheme {
             var selectedIndex by remember { mutableStateOf(0) }
+            var currentRotation by remember { mutableStateOf(0) }
             val image = testImages[selectedIndex]
 
             Surface(modifier = Modifier.fillMaxSize()) {
@@ -55,6 +56,7 @@ fun main() {
                             modifier = Modifier.fillMaxSize(),
                             contentScale = image.contentScale,
                             showScrollIndicators = true,
+                            rotation = currentRotation,
                             contentDescription = image.name
                         )
                     }
@@ -72,6 +74,9 @@ fun main() {
                             ) {
                                 Text(img.name, style = MaterialTheme.typography.labelSmall)
                             }
+                        }
+                        Button(onClick = { currentRotation = (currentRotation + 90) % 360 }) {
+                            Text("${currentRotation}°", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,6 +69,7 @@ internal fun TesseraImageContent(
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
+    rotation: Int = 0,
     onDismiss: () -> Unit = {}
 ) {
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
@@ -233,6 +236,7 @@ internal fun TesseraImageContent(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .clipToBounds()
             .offset { IntOffset(0, dismissOffsetY.roundToInt()) }
             .background(
                 Color.Black.copy(
@@ -273,10 +277,16 @@ internal fun TesseraImageContent(
                 var lastTapTime by remember { mutableLongStateOf(0L) }
                 var lastTapOffset by remember { mutableStateOf(Offset.Zero) }
 
+                val normalizedRotation = ((rotation % 360) + 360) % 360
+
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(contentScale) {
+                        .graphicsLayer {
+                            rotationZ = normalizedRotation.toFloat()
+                            clip = true
+                        }
+                        .pointerInput(contentScale, rotation) {
                             awaitPointerEventScope {
                                 while (true) {
                                     val event = awaitPointerEvent()
@@ -370,7 +380,7 @@ internal fun TesseraImageContent(
                                 }
                             }
                         }
-                        .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale) {
+                        .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale, rotation) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 var shouldConsume = !enablePagerIntegration

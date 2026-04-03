@@ -135,3 +135,54 @@ class TileLoadInfoTest {
         assertEquals(2, info.zoomLevel)
     }
 }
+
+class ImageFormatTest {
+
+    @Test
+    fun fromMimeType_jpeg() {
+        assertEquals(ImageFormat.JPEG, ImageFormat.fromMimeType("image/jpeg"))
+    }
+
+    @Test
+    fun fromMimeType_jpg() {
+        assertEquals(ImageFormat.JPEG, ImageFormat.fromMimeType("image/jpg"))
+    }
+
+    @Test
+    fun fromMimeType_png() {
+        assertEquals(ImageFormat.PNG, ImageFormat.fromMimeType("image/png"))
+    }
+
+    @Test
+    fun fromMimeType_webp() {
+        assertEquals(ImageFormat.WEBP, ImageFormat.fromMimeType("image/webp"))
+    }
+
+    @Test
+    fun fromMimeType_gif() {
+        assertEquals(ImageFormat.GIF, ImageFormat.fromMimeType("image/gif"))
+    }
+
+    @Test
+    fun fromMimeType_unknown() {
+        assertEquals(ImageFormat.UNKNOWN, ImageFormat.fromMimeType("image/bmp"))
+    }
+
+    @Test
+    fun fromMimeType_caseInsensitive() {
+        assertEquals(ImageFormat.JPEG, ImageFormat.fromMimeType("image/JPEG"))
+        assertEquals(ImageFormat.PNG, ImageFormat.fromMimeType("Image/PNG"))
+        assertEquals(ImageFormat.WEBP, ImageFormat.fromMimeType("IMAGE/WEBP"))
+    }
+
+    @Test
+    fun fromMimeType_emptyString() {
+        assertEquals(ImageFormat.UNKNOWN, ImageFormat.fromMimeType(""))
+    }
+
+    @Test
+    fun fromMimeType_partialMatch() {
+        assertEquals(ImageFormat.JPEG, ImageFormat.fromMimeType("jpeg"))
+        assertEquals(ImageFormat.PNG, ImageFormat.fromMimeType("png"))
+    }
+}

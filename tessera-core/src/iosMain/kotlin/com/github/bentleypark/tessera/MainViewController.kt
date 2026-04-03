@@ -44,54 +44,24 @@ private data class TestImage(
 
 private val testImages = listOf(
     TestImage(
-        label = "Small",
-        description = "1280px (~600KB, ~5MB decoded)",
-        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1280&q=80"
-    ),
-    TestImage(
         label = "2K",
-        description = "2048px (~1.3MB, ~13MB decoded)",
+        description = "2048px — basic tile rendering",
         url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2048&q=80"
     ),
     TestImage(
         label = "4K",
-        description = "3840px (~1.5MB, ~37MB decoded)",
+        description = "3840px — tile-based rendering",
         url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=3840&q=80"
     ),
     TestImage(
-        label = "6K",
-        description = "6000px (~4MB, ~96MB decoded)",
-        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=6000&q=90"
-    ),
-    TestImage(
-        label = "8K",
-        description = "7680px (~5.6MB, ~134MB decoded)",
-        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=7680&q=80"
-    ),
-    TestImage(
         label = "108MP",
-        description = "12000px (~7.5MB, ~432MB decoded)",
+        description = "12000px (~432MB decoded) — extreme memory test",
         url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=12000&q=80"
     ),
     TestImage(
-        label = "EXIF 0°",
-        description = "EXIF orientation 1 (normal)",
-        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_1.jpg"
-    ),
-    TestImage(
         label = "EXIF 90°",
-        description = "EXIF orientation 6 (90° CW)",
+        description = "EXIF orientation 6 (90° CW rotation)",
         url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_6.jpg"
-    ),
-    TestImage(
-        label = "EXIF 180°",
-        description = "EXIF orientation 3 (180°)",
-        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_3.jpg"
-    ),
-    TestImage(
-        label = "EXIF 270°",
-        description = "EXIF orientation 8 (270° CW)",
-        url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_8.jpg"
     ),
     TestImage(
         label = "PNG",
@@ -100,19 +70,13 @@ private val testImages = listOf(
     ),
     TestImage(
         label = "FitWidth",
-        description = "세로로 긴 이미지 (800x2400) — 화면 너비 맞춤, 세로 스크롤",
+        description = "Tall image (800x2400) — vertical scroll",
         url = "https://picsum.photos/800/2400",
         contentScale = ContentScale.FitWidth
     ),
     TestImage(
-        label = "FitHeight",
-        description = "가로 풍경 — 화면 높이 맞춤, 가로 스크롤",
-        url = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=4096&q=80",
-        contentScale = ContentScale.FitHeight
-    ),
-    TestImage(
         label = "Auto",
-        description = "일반 이미지 — Auto 감지 (비율에 따라 자동 선택)",
+        description = "Auto detect — aspect ratio based scaling",
         url = "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=2048&q=80",
         contentScale = ContentScale.Auto
     )
@@ -151,6 +115,7 @@ private fun PagerGallery(
     onBack: () -> Unit
 ) {
     val pagerState = rememberPagerState(initialPage = initialPage) { images.size }
+    var currentRotation by remember { mutableIntStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(
@@ -166,6 +131,7 @@ private fun PagerGallery(
                 enableDismissGesture = isFitMode,
                 enablePagerIntegration = isFitMode,
                 showScrollIndicators = true,
+                rotation = currentRotation,
                 onDismiss = onBack,
                 contentDescription = images[page].description
             )
@@ -195,6 +161,25 @@ private fun PagerGallery(
         ) {
             Text(
                 text = "< Back",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        // Rotation button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 8.dp, top = 4.dp)
+                .zIndex(2f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable { currentRotation = (currentRotation + 90) % 360 }
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = "${currentRotation}°",
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium

@@ -69,6 +69,7 @@ fun main() = application {
     ) {
         MaterialTheme {
             var selectedIndex by remember { mutableStateOf(0) }
+            var currentRotation by remember { mutableStateOf(0) }
             val image = testImages[selectedIndex]
 
             Surface(modifier = Modifier.fillMaxSize()) {
@@ -85,6 +86,7 @@ fun main() = application {
                             modifier = Modifier.fillMaxSize(),
                             contentScale = image.contentScale,
                             showScrollIndicators = true,
+                            rotation = currentRotation,
                             contentDescription = image.name
                         )
                     }
@@ -108,6 +110,13 @@ fun main() = application {
                                 ) {
                                     Text(img.name, style = MaterialTheme.typography.labelSmall)
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Rotation button
+                            Button(onClick = { currentRotation = (currentRotation + 90) % 360 }) {
+                                Text("${currentRotation}°", style = MaterialTheme.typography.labelSmall)
                             }
 
                             Spacer(modifier = Modifier.weight(1f))

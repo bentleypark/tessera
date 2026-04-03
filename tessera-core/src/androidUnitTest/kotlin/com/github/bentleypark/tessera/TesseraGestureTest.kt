@@ -58,6 +58,7 @@ class TesseraGestureTest {
         enableDismissGesture: Boolean = false,
         enablePagerIntegration: Boolean = false,
         showScrollIndicators: Boolean = false,
+        rotation: Int = 0,
         imageWidth: Int = 2000,
         imageHeight: Int = 1500,
         onDismiss: () -> Unit = {}
@@ -73,6 +74,7 @@ class TesseraGestureTest {
                 enableDismissGesture = enableDismissGesture,
                 enablePagerIntegration = enablePagerIntegration,
                 showScrollIndicators = showScrollIndicators,
+                rotation = rotation,
                 onDismiss = onDismiss
             )
         }
@@ -261,5 +263,109 @@ class TesseraGestureTest {
         }
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Error:", substring = true).assertExists()
+    }
+
+    // --- Rotation tests ---
+
+    @Test
+    fun rotation0_showsContent() {
+        setUpContent(rotation = 0)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation90_showsContent() {
+        setUpContent(rotation = 90)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation180_showsContent() {
+        setUpContent(rotation = 180)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation270_showsContent() {
+        setUpContent(rotation = 270)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation90_doubleTap_noCrash() {
+        setUpContent(rotation = 90)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun rotation270_swipe_noCrash() {
+        setUpContent(rotation = 270)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput { swipeLeft() }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun rotation90_withFitWidth_noCrash() {
+        setUpContent(
+            rotation = 90,
+            contentScale = ContentScale.FitWidth,
+            imageWidth = 800,
+            imageHeight = 2400
+        )
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation90_withDismissGesture_noCrash() {
+        setUpContent(rotation = 90, enableDismissGesture = true)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput {
+                swipeDown(startY = centerY, endY = centerY + 300f)
+            }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun rotation180_withDismissGesture_noCrash() {
+        setUpContent(rotation = 180, enableDismissGesture = true)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput {
+                swipeDown(startY = centerY, endY = centerY + 300f)
+            }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun rotation90_withFitHeight_noCrash() {
+        setUpContent(
+            rotation = 90,
+            contentScale = ContentScale.FitHeight,
+            imageWidth = 3000,
+            imageHeight = 600
+        )
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation_normalizes_negative() {
+        setUpContent(rotation = -90)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
+    }
+
+    @Test
+    fun rotation_normalizes_over360() {
+        setUpContent(rotation = 450)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .assertExists()
     }
 }
