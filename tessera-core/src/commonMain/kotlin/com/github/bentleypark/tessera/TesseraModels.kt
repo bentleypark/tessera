@@ -101,3 +101,23 @@ interface RegionDecoder : AutoCloseable {
     fun decodeTile(rect: TileRect, sampleSize: Int = 1): ImageBitmap?
     fun decodePreview(maxSize: Int = 512): ImageBitmap?
 }
+
+/**
+ * Image format detected from MIME type string.
+ */
+enum class ImageFormat {
+    JPEG, PNG, WEBP, GIF, UNKNOWN;
+
+    companion object {
+        fun fromMimeType(mimeType: String): ImageFormat {
+            val lower = mimeType.lowercase()
+            return when {
+                lower.contains("jpeg") || lower.contains("jpg") -> JPEG
+                lower.contains("png") -> PNG
+                lower.contains("webp") -> WEBP
+                lower.contains("gif") -> GIF
+                else -> UNKNOWN
+            }
+        }
+    }
+}

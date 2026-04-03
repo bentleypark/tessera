@@ -36,26 +36,26 @@ data class TestImage(
 
 val testImages = listOf(
     TestImage(
-        "4K Landscape", "https://picsum.photos/3840/2160",
-        description = "3840x2160 Fit"
+        "4K JPEG", "https://picsum.photos/3840/2160",
+        description = "3840x2160 JPEG Fit"
     ),
     TestImage(
         "Tall (FitWidth)", "https://picsum.photos/800/2400",
         ContentScale.FitWidth,
-        description = "800x2400 FitWidth — vertical scroll"
+        description = "800x2400 JPEG FitWidth — vertical scroll"
     ),
     TestImage(
         "Wide (FitHeight)", "https://picsum.photos/3000/800",
         ContentScale.FitHeight,
-        description = "3000x800 FitHeight — horizontal scroll"
+        description = "3000x800 JPEG FitHeight — horizontal scroll"
     ),
     TestImage(
-        "Large", "https://picsum.photos/4000/3000",
-        description = "4000x3000 Fit"
+        "PNG", "https://placehold.co/2000x1500.png",
+        description = "2000x1500 PNG format test"
     ),
     TestImage(
-        "Square", "https://picsum.photos/2000/2000",
-        description = "2000x2000 Fit"
+        "Large JPEG", "https://picsum.photos/4000/3000",
+        description = "4000x3000 JPEG Fit"
     ),
 )
 

@@ -94,6 +94,11 @@ private val testImages = listOf(
         url = "https://raw.githubusercontent.com/recurser/exif-orientation-examples/master/Landscape_8.jpg"
     ),
     TestImage(
+        label = "PNG",
+        description = "PNG format (2000x1500)",
+        url = "https://placehold.co/2000x1500.png"
+    ),
+    TestImage(
         label = "FitWidth",
         description = "세로로 긴 이미지 (800x2400) — 화면 너비 맞춤, 세로 스크롤",
         url = "https://picsum.photos/800/2400",

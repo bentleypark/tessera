@@ -309,6 +309,77 @@ class DesktopRegionDecoderTest {
         decoder.close()
     }
 
+    // --- PNG format tests ---
+
+    @Test
+    fun png_decodeTile_withSampleSize2_returnsNonNull() {
+        val file = createTestPng(2000, 1500)
+        val decoder = DesktopRegionDecoder(ImageSource.FileSource(file))
+        decoder.initialize()
+
+        assertEquals(2000, decoder.imageInfo.width)
+        assertEquals(1500, decoder.imageInfo.height)
+        assertEquals("image/png", decoder.imageInfo.mimeType)
+
+        val tile = decoder.decodeTile(TileRect(0, 0, 512, 512), sampleSize = 2)
+        assertNotNull(tile, "PNG tile should decode")
+        decoder.close()
+    }
+
+    @Test
+    fun png_largeSampleSize_returnsNonNull() {
+        val file = createTestPng(2000, 1500)
+        val decoder = DesktopRegionDecoder(ImageSource.FileSource(file))
+        decoder.initialize()
+
+        val tile = decoder.decodeTile(TileRect(0, 0, 1000, 750), sampleSize = 4)
+        assertNotNull(tile, "PNG tile should decode with any sampleSize")
+        decoder.close()
+    }
+
+    @Test
+    fun png_decodePreview_returnsNonNull() {
+        val file = createTestPng(2000, 1500)
+        val decoder = DesktopRegionDecoder(ImageSource.FileSource(file))
+        decoder.initialize()
+
+        val preview = decoder.decodePreview(maxSize = 256)
+        assertNotNull(preview, "PNG preview should decode")
+        decoder.close()
+    }
+
+    @Test
+    fun jpeg_sampleSize2_returnsNonNull() {
+        val file = createTestJpeg(2000, 1500)
+        val decoder = DesktopRegionDecoder(ImageSource.FileSource(file))
+        decoder.initialize()
+
+        val tile = decoder.decodeTile(TileRect(0, 0, 512, 512), sampleSize = 2)
+        assertNotNull(tile, "JPEG tile should subsample natively")
+        decoder.close()
+    }
+
+    @Test
+    fun png_multipleTilesAcrossImage_allNonNull() {
+        val file = createTestPng(1024, 768)
+        val decoder = DesktopRegionDecoder(ImageSource.FileSource(file))
+        decoder.initialize()
+
+        val tileSize = 256
+        var tileCount = 0
+        for (row in 0 until 768 step tileSize) {
+            for (col in 0 until 1024 step tileSize) {
+                val right = minOf(col + tileSize, 1024)
+                val bottom = minOf(row + tileSize, 768)
+                val tile = decoder.decodeTile(TileRect(col, row, right, bottom), sampleSize = 2)
+                assertNotNull(tile, "PNG tile at ($col,$row) should not be null")
+                tileCount++
+            }
+        }
+        assertTrue(tileCount > 0)
+        decoder.close()
+    }
+
     // --- close ---
 
     @Test

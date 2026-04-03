@@ -198,7 +198,7 @@ Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
 
 > JPEG provides the best performance across all platforms due to its block-based compression structure. PNG, WebP, and other formats are supported but may have higher memory overhead during decoding. GIF animation is not supported — only the first frame is displayed.
 >
-> **Large PNG / non-JPEG formats (iOS, Desktop)**: Subsample APIs (`kCGImageSourceSubsampleFactor`, `setSourceSubsampling`) decode the full image internally before downscaling — memory savings apply only to the cached result, not during the decode step. A 30MP PNG requires ~120MB internally during decode before the downscaled result (~30MB) is cached — the spike is temporary but real. For images over 30MP, JPEG is strongly recommended.
+> **Large non-JPEG images (iOS / Desktop)**: Tessera logs a warning at initialization when a PNG or other non-JPEG image exceeds 30MP. Subsample APIs decode the full image internally before downscaling — a 30MP PNG requires ~120MB during decode before the ~30MB result is cached. **For images over 30MP, JPEG is strongly recommended.** Filter Logcat/console by tag `Tessera` to catch these warnings. A callback API (`onWarning`) may be added in a future release based on user demand.
 
 ## Modules
 

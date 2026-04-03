@@ -17,6 +17,7 @@ targets:
     info:
       path: iosApp/Info.plist
       properties:
+        CFBundleDisplayName: "Tessera Sample"
         CADisableMinimumFrameDurationOnPhone: true
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true

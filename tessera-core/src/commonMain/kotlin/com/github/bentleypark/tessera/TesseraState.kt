@@ -60,6 +60,16 @@ class TesseraState(
             decoder = regionDecoder
             tileManager = TileManager(info)
 
+            // Warn about large non-JPEG images (subsample APIs don't save memory for PNG, etc.)
+            val format = ImageFormat.fromMimeType(info.mimeType)
+            val pixels = info.width.toLong() * info.height.toLong()
+            if (format != ImageFormat.JPEG && pixels > 30_000_000) {
+                logWarning("Tessera", "${format.name} image (${pixels / 1_000_000}MP) " +
+                    "may cause high memory usage on iOS/Desktop. " +
+                    "Subsample APIs decode the full image internally for non-JPEG formats. " +
+                    "JPEG is recommended for images over 30MP.")
+            }
+
             val previewStart = currentTimeMillis()
             val preview = regionDecoder.decodePreview(maxSize = 1024)
             val previewTime = currentTimeMillis() - previewStart

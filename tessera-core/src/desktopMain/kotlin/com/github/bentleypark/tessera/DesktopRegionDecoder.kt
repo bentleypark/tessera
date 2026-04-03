@@ -236,6 +236,7 @@ class DesktopRegionDecoder(
             }
 
             val decoded = imgReader.read(0, param)
+
             val state = CachedState(decoded, factor, decoded.width, decoded.height)
             cachedState = state
             state
