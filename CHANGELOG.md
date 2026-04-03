@@ -32,6 +32,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Thin scroll bars on right/bottom edges when zoomed
   - Minimap preview thumbnail with viewport rectangle in bottom-left
   - Fade animation: 1.5s hold → 0.5s fade-out
+- **User-controlled rotation** (#36)
+  - `rotation` parameter (0°/90°/180°/270°) on TesseraImage across all 4 platforms
+  - `graphicsLayer { rotationZ }` with `clipToBounds()` for overflow prevention
+  - Rotation buttons in all sample apps (Android, iOS, Desktop, Web)
+  - 12 rotation UI tests (4 angles, gesture combos, normalization)
+- **Format-based large image warning** (#35)
+  - `ImageFormat` enum with `fromMimeType()` detection (JPEG, PNG, WEBP, GIF, UNKNOWN)
+  - 30MP+ non-JPEG images trigger `logWarning` about potential OOM
+  - Replaced ineffective PNG subsample fallback (PNG/TIFF decode full image internally)
+  - 10 ImageFormat unit tests
 - **Compose UI test infrastructure** (#29)
   - 17 gesture integration tests using Robolectric + `createComposeRule()`
   - FakeImageLoader, fakeDecoderFactory for isolated testing
@@ -59,6 +69,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Sample apps with HorizontalPager gallery and 8K/108MP test images
 - Unit tests for TileManager, TesseraModels, TesseraState (#22, #23, #24)
 - 12 new tests for initializeDecoder, applyInitResult, decodeTile, cacheTile
+- **Kotlin Multiplatform** project structure with Android and iOS targets
+- **commonMain**: TileManager, TesseraState, TesseraModels, TesseraImageContent
+- **Android**: BitmapRegionDecoder-based tile decoding, Glide image loader
+- **iOS**: Skia-based tile decoding, NSURLSession image loader
+- Tile-based rendering with configurable tile size (256px default)
+- Multi-level zoom (0-3) with automatic sample size selection
+- LRU tile cache with configurable max size (150 tiles default)
+- Pinch-to-zoom, pan, and double-tap zoom gestures
+- Drag-to-dismiss gesture support
+- Preview bitmap for instant initial display
+- Android sample app
+- iOS sample app with SwiftUI integration
 - CI/CD with GitHub Actions for Android and iOS builds (#9)
 - JitPack publishing configuration (#10)
 
@@ -67,6 +89,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Build targets**: Added `jvm("desktop")` and `wasmJs { browser() }` to tessera-core
 - **.gitignore**: Individual `/module/build` patterns → global `**/build/`
 - **`repositoriesMode`**: `FAIL_ON_PROJECT_REPOS` → `PREFER_PROJECT` (required by Kotlin/Wasm Node.js/yarn repos)
+- **Sample apps**: Streamlined from 14 to 7 test images (2K, 4K, 108MP, EXIF 90°, PNG, FitWidth, Auto)
 - **Scroll gesture**: Added `isZoomModifierPressed` expect/actual for Desktop Ctrl/Cmd+Scroll zoom
 - **Package rename**: `com.naemomlab.tessera` → `com.github.bentleypark.tessera` (#27)
 - **iOS decoder**: IosRegionDecoder (Skia full-load) → CgImageSourceRegionDecoder (subsample + Skia hybrid)
@@ -84,21 +107,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LRU cache: loadTile() now correctly tracks access order for cached tiles
 - SHA-256 for iOS temp file names (was hashCode, collision risk)
 
-## [0.1.0] - 2026-04-01
-
-### Added
-- **Kotlin Multiplatform** project structure with Android and iOS targets
-- **commonMain**: TileManager, TesseraState, TesseraModels, TesseraImageContent
-- **Android**: BitmapRegionDecoder-based tile decoding, Glide image loader
-- **iOS**: Skia-based tile decoding, NSURLSession image loader
-- Tile-based rendering with configurable tile size (256px default)
-- Multi-level zoom (0-3) with automatic sample size selection
-- LRU tile cache with configurable max size (150 tiles default)
-- Pinch-to-zoom, pan, and double-tap zoom gestures
-- Drag-to-dismiss gesture support
-- Preview bitmap for instant initial display
-- Android sample app
-- iOS sample app with SwiftUI integration
-
-[Unreleased]: https://github.com/bentleypark/tessera/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/bentleypark/tessera/releases/tag/v0.1.0
+[Unreleased]: https://github.com/bentleypark/tessera/commits/main

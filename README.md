@@ -186,7 +186,7 @@ Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
 | 8K | ~134MB | ~37MB | **72%** |
 | 108MP | ~432MB | ~21MB | **95%** |
 
-> Benchmarks run on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5), 5 runs each. All benchmarks use JPEG images. Android benchmarks in progress.
+> Benchmarks run on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5), 5 runs each. All benchmarks use JPEG images. Android uses BitmapRegionDecoder (Tier 1 partial decode) — memory footprint scales with tile size, not image size.
 
 ### Supported Image Formats
 
