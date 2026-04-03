@@ -56,6 +56,8 @@ kotlin {
             dependencies {
                 implementation(libs.robolectric)
                 implementation(libs.timber)
+                implementation(libs.compose.ui.test.junit4)
+                implementation(libs.compose.ui.test.manifest)
             }
         }
 
@@ -76,6 +78,12 @@ android {
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
         consumerProguardFiles("consumer-rules.pro")
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 
     compileOptions {

@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,6 +55,7 @@ class FakeRegionDecoder(
 }
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class TesseraStateTest {
 
     private val dummySource = ImageSource.FileSource(File("/fake/path"))
