@@ -197,6 +197,8 @@ Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
 | HEIF/HEIC | ✅ (API 31+) | ✅ | ❌ (JVM limitation) | ❌ |
 
 > JPEG provides the best performance across all platforms due to its block-based compression structure. PNG, WebP, and other formats are supported but may have higher memory overhead during decoding. GIF animation is not supported — only the first frame is displayed.
+>
+> **Large PNG / non-JPEG formats (iOS, Desktop)**: Subsample APIs (`kCGImageSourceSubsampleFactor`, `setSourceSubsampling`) decode the full image internally before downscaling — memory savings apply only to the cached result, not during the decode step. A 30MP PNG requires ~120MB internally during decode before the downscaled result (~30MB) is cached — the spike is temporary but real. For images over 30MP, JPEG is strongly recommended.
 
 ## Modules
 
@@ -255,9 +257,10 @@ Three distinct decoding tiers exist across platforms:
 **Tier 1 — Partial Decode**
 - **Android**: `BitmapRegionDecoder` requests only the tile region from the decoder. Memory efficiency is highest with JPEG (DCT block structure); PNG and other formats may incur higher internal overhead depending on Android's codec implementation.
 
-**Tier 2 — Subsample Full Decode + Tile Extraction**
-- **iOS**: `CGImageSource` with `kCGImageSourceSubsampleFactor` decodes at 1/2, 1/4, or 1/8 resolution (JPEG only; PNG and other formats are not subsampled). Skia `drawImageRect` extracts tiles at ~1ms each. 108MP JPEG → ~6.7MP in memory (~21MB).
-- **Desktop**: `ImageIO` with `setSourceSubsampling` decodes at reduced resolution (JPEG only; PNG subsampling is ignored by most JDK implementations). Cached `BufferedImage` serves tiles via `getSubimage`. Same memory profile as iOS for JPEG.
+**Tier 2 — Subsample + Tile Extraction (JPEG optimized)**
+- **iOS**: `CGImageSource` with `kCGImageSourceSubsampleFactor` decodes at 1/2, 1/4, or 1/8 resolution. Skia `drawImageRect` extracts tiles at ~1ms each. 108MP JPEG → ~6.7MP in memory (~21MB).
+- **Desktop**: `ImageIO` with `setSourceSubsampling` decodes at reduced resolution. Cached `BufferedImage` serves tiles via `getSubimage`. Same memory profile as iOS.
+- **Note**: Subsample is only effective for JPEG (DCT block skipping). For PNG and other formats, the decoder loads the full image internally before returning a scaled result — memory savings apply to the cached result only, not during decode. **For PNG images over 30MP on iOS/Desktop, this internal full decode may cause OOM before the result is returned.** Tessera logs a warning at initialization when a large non-JPEG image is detected.
 
 **Tier 3 — Full Decode + Tile Extraction**
 - **Web**: Browsers provide no partial image decode API. The entire image is decoded into memory via `Image.makeFromEncoded`, then tiles are extracted via Skia `Surface.drawImageRect`.
