@@ -3,9 +3,7 @@
 /local.properties
 /.idea
 .DS_Store
-/build
-/tessera-core/build
-/sample/build
+**/build/
 /captures
 .externalNativeBuild
 .cxx

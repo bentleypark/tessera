@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.compose.multiplatform) apply false
 }
 
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+tasks.matching { it.name == "clean" }.configureEach {
+    doLast {
+        delete(rootProject.layout.buildDirectory)
+    }
 }

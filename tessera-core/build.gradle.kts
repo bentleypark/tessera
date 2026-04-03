@@ -37,6 +37,11 @@ kotlin {
 
     jvm("desktop")
 
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(compose.foundation)
@@ -57,6 +62,12 @@ kotlin {
                 implementation(libs.timber)
                 implementation(libs.compose.ui.test.junit4)
                 implementation(libs.compose.ui.test.manifest)
+            }
+        }
+
+        val wasmJsMain by getting {
+            dependencies {
+                implementation(libs.coroutines.core)
             }
         }
 
