@@ -58,6 +58,23 @@ data class TileGrid(
 }
 
 /**
+ * Image rotation in 90-degree increments.
+ */
+enum class ImageRotation(val degrees: Int) {
+    None(0),
+    Rotate90(90),
+    Rotate180(180),
+    Rotate270(270);
+
+    fun next(): ImageRotation = when (this) {
+        None -> Rotate90
+        Rotate90 -> Rotate180
+        Rotate180 -> Rotate270
+        Rotate270 -> None
+    }
+}
+
+/**
  * Content scaling strategy for initial image display.
  */
 enum class ContentScale {

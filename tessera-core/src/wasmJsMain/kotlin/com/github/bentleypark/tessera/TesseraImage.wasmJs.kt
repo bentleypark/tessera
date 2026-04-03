@@ -31,7 +31,7 @@ fun TesseraImage(
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
-    rotation: Int = 0,
+    rotation: ImageRotation = ImageRotation.None,
     onDismiss: () -> Unit = {}
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: WasmImageLoader() }

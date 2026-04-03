@@ -136,6 +136,34 @@ class TileLoadInfoTest {
     }
 }
 
+class ImageRotationTest {
+
+    @Test
+    fun degrees_matchExpectedValues() {
+        assertEquals(0, ImageRotation.None.degrees)
+        assertEquals(90, ImageRotation.Rotate90.degrees)
+        assertEquals(180, ImageRotation.Rotate180.degrees)
+        assertEquals(270, ImageRotation.Rotate270.degrees)
+    }
+
+    @Test
+    fun next_cyclesClockwise() {
+        assertEquals(ImageRotation.Rotate90, ImageRotation.None.next())
+        assertEquals(ImageRotation.Rotate180, ImageRotation.Rotate90.next())
+        assertEquals(ImageRotation.Rotate270, ImageRotation.Rotate180.next())
+        assertEquals(ImageRotation.None, ImageRotation.Rotate270.next())
+    }
+
+    @Test
+    fun next_fullCycleReturnsToStart() {
+        ImageRotation.entries.forEach { start ->
+            var current = start
+            repeat(ImageRotation.entries.size) { current = current.next() }
+            assertEquals(start, current)
+        }
+    }
+}
+
 class ImageFormatTest {
 
     @Test

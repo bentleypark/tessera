@@ -18,7 +18,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -58,7 +57,7 @@ class TesseraGestureTest {
         enableDismissGesture: Boolean = false,
         enablePagerIntegration: Boolean = false,
         showScrollIndicators: Boolean = false,
-        rotation: Int = 0,
+        rotation: ImageRotation = ImageRotation.None,
         imageWidth: Int = 2000,
         imageHeight: Int = 1500,
         onDismiss: () -> Unit = {}
@@ -269,35 +268,35 @@ class TesseraGestureTest {
 
     @Test
     fun rotation0_showsContent() {
-        setUpContent(rotation = 0)
+        setUpContent(rotation = ImageRotation.None)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .assertExists()
     }
 
     @Test
     fun rotation90_showsContent() {
-        setUpContent(rotation = 90)
+        setUpContent(rotation = ImageRotation.Rotate90)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .assertExists()
     }
 
     @Test
     fun rotation180_showsContent() {
-        setUpContent(rotation = 180)
+        setUpContent(rotation = ImageRotation.Rotate180)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .assertExists()
     }
 
     @Test
     fun rotation270_showsContent() {
-        setUpContent(rotation = 270)
+        setUpContent(rotation = ImageRotation.Rotate270)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .assertExists()
     }
 
     @Test
     fun rotation90_doubleTap_noCrash() {
-        setUpContent(rotation = 90)
+        setUpContent(rotation = ImageRotation.Rotate90)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .performTouchInput { doubleClick(center) }
         composeTestRule.waitForIdle()
@@ -305,7 +304,7 @@ class TesseraGestureTest {
 
     @Test
     fun rotation270_swipe_noCrash() {
-        setUpContent(rotation = 270)
+        setUpContent(rotation = ImageRotation.Rotate270)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .performTouchInput { swipeLeft() }
         composeTestRule.waitForIdle()
@@ -314,7 +313,7 @@ class TesseraGestureTest {
     @Test
     fun rotation90_withFitWidth_noCrash() {
         setUpContent(
-            rotation = 90,
+            rotation = ImageRotation.Rotate90,
             contentScale = ContentScale.FitWidth,
             imageWidth = 800,
             imageHeight = 2400
@@ -325,7 +324,7 @@ class TesseraGestureTest {
 
     @Test
     fun rotation90_withDismissGesture_noCrash() {
-        setUpContent(rotation = 90, enableDismissGesture = true)
+        setUpContent(rotation = ImageRotation.Rotate90, enableDismissGesture = true)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .performTouchInput {
                 swipeDown(startY = centerY, endY = centerY + 300f)
@@ -335,7 +334,7 @@ class TesseraGestureTest {
 
     @Test
     fun rotation180_withDismissGesture_noCrash() {
-        setUpContent(rotation = 180, enableDismissGesture = true)
+        setUpContent(rotation = ImageRotation.Rotate180, enableDismissGesture = true)
         composeTestRule.onNodeWithContentDescription(testContentDescription)
             .performTouchInput {
                 swipeDown(startY = centerY, endY = centerY + 300f)
@@ -346,7 +345,7 @@ class TesseraGestureTest {
     @Test
     fun rotation90_withFitHeight_noCrash() {
         setUpContent(
-            rotation = 90,
+            rotation = ImageRotation.Rotate90,
             contentScale = ContentScale.FitHeight,
             imageWidth = 3000,
             imageHeight = 600
@@ -355,17 +354,4 @@ class TesseraGestureTest {
             .assertExists()
     }
 
-    @Test
-    fun rotation_normalizes_negative() {
-        setUpContent(rotation = -90)
-        composeTestRule.onNodeWithContentDescription(testContentDescription)
-            .assertExists()
-    }
-
-    @Test
-    fun rotation_normalizes_over360() {
-        setUpContent(rotation = 450)
-        composeTestRule.onNodeWithContentDescription(testContentDescription)
-            .assertExists()
-    }
 }

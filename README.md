@@ -30,7 +30,7 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform. It uses ti
 - **LRU Tile Cache** — Automatic eviction with configurable cache size (default: 150 tiles)
 - **Multiple Image Sources** — Network URLs, local files, Android content URIs and resources
 - **EXIF Orientation** — Automatic rotation/mirror correction for all 8 EXIF orientations
-- **Manual Rotation** — User-controlled 0°/90°/180°/270° rotation via `rotation` parameter
+- **Manual Rotation** — User-controlled rotation via `ImageRotation` enum (None, Rotate90, Rotate180, Rotate270)
 - **ReadMode** — Auto-detect tall/wide images with FitWidth/FitHeight content scaling
 - **Scroll Indicators** — Minimap + scroll bars for zoomed-in navigation (auto-hide)
 - **Zero Core Dependencies** — `tessera-core` has no external image library dependencies
@@ -311,7 +311,7 @@ Three distinct decoding tiers exist across platforms:
 | `enableDismissGesture` | Boolean | `false` | Vertical drag-to-dismiss |
 | `enablePagerIntegration` | Boolean | `false` | Pass horizontal swipes to parent Pager |
 | `showScrollIndicators` | Boolean | `false` | Show scroll position indicators when zoomed |
-| `rotation` | Int | `0` | User-controlled rotation: 0, 90, 180, 270 |
+| `rotation` | ImageRotation | `ImageRotation.None` | User-controlled rotation (None, Rotate90, Rotate180, Rotate270) |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
 
 ### HorizontalPager Integration

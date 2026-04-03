@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.github.bentleypark.tessera.ContentScale
+import com.github.bentleypark.tessera.ImageRotation
 import com.github.bentleypark.tessera.TesseraImage
 
 data class TestImage(
@@ -69,7 +70,7 @@ fun main() = application {
     ) {
         MaterialTheme {
             var selectedIndex by remember { mutableStateOf(0) }
-            var currentRotation by remember { mutableStateOf(0) }
+            var currentRotation by remember { mutableStateOf(ImageRotation.None) }
             val image = testImages[selectedIndex]
 
             Surface(modifier = Modifier.fillMaxSize()) {
@@ -115,8 +116,8 @@ fun main() = application {
                             Spacer(modifier = Modifier.width(12.dp))
 
                             // Rotation button
-                            Button(onClick = { currentRotation = (currentRotation + 90) % 360 }) {
-                                Text("${currentRotation}°", style = MaterialTheme.typography.labelSmall)
+                            Button(onClick = { currentRotation = currentRotation.next() }) {
+                                Text("${currentRotation.degrees}°", style = MaterialTheme.typography.labelSmall)
                             }
 
                             Spacer(modifier = Modifier.weight(1f))

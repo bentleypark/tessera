@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalContext
 import com.github.bentleypark.tessera.ContentScale
+import com.github.bentleypark.tessera.ImageRotation
 import com.github.bentleypark.tessera.TesseraImage
 import com.github.bentleypark.tessera.coil.CoilImageLoader
 
@@ -128,7 +129,7 @@ private fun PagerGallery(
     onBack: () -> Unit
 ) {
     val pagerState = rememberPagerState(initialPage = initialPage) { images.size }
-    var currentRotation by remember { mutableIntStateOf(0) }
+    var currentRotation by remember { mutableStateOf(ImageRotation.None) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(
@@ -188,11 +189,11 @@ private fun PagerGallery(
                 .zIndex(2f)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black.copy(alpha = 0.5f))
-                .clickable { currentRotation = (currentRotation + 90) % 360 }
+                .clickable { currentRotation = currentRotation.next() }
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Text(
-                text = "${currentRotation}°",
+                text = "${currentRotation.degrees}°",
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium

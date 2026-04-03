@@ -69,7 +69,7 @@ internal fun TesseraImageContent(
     enableDismissGesture: Boolean = false,
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
-    rotation: Int = 0,
+    rotation: ImageRotation = ImageRotation.None,
     onDismiss: () -> Unit = {}
 ) {
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
@@ -277,13 +277,11 @@ internal fun TesseraImageContent(
                 var lastTapTime by remember { mutableLongStateOf(0L) }
                 var lastTapOffset by remember { mutableStateOf(Offset.Zero) }
 
-                val normalizedRotation = ((rotation % 360) + 360) % 360
-
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            rotationZ = normalizedRotation.toFloat()
+                            rotationZ = rotation.degrees.toFloat()
                             clip = true
                         }
                         .pointerInput(contentScale, rotation) {
