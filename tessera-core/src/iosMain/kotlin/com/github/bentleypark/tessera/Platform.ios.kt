@@ -22,3 +22,5 @@ internal actual fun currentTimeMillis(): Long = (NSDate().timeIntervalSince1970 
 actual val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default
 
 internal actual val imageLoadDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Default
+
+internal actual fun isZoomModifierPressed(event: androidx.compose.ui.input.pointer.PointerEvent): Boolean = false

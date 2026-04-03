@@ -3,9 +3,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -27,15 +30,33 @@ import com.github.bentleypark.tessera.TesseraImage
 data class TestImage(
     val name: String,
     val url: String,
-    val contentScale: ContentScale = ContentScale.Fit
+    val contentScale: ContentScale = ContentScale.Fit,
+    val description: String = ""
 )
 
 val testImages = listOf(
-    TestImage("4K Landscape", "https://picsum.photos/3840/2160"),
-    TestImage("Tall (FitWidth)", "https://picsum.photos/800/2400", ContentScale.FitWidth),
-    TestImage("Wide (FitHeight)", "https://picsum.photos/3000/800", ContentScale.FitHeight),
-    TestImage("6K Large", "https://picsum.photos/4000/3000"),
-    TestImage("Square", "https://picsum.photos/2000/2000"),
+    TestImage(
+        "4K Landscape", "https://picsum.photos/3840/2160",
+        description = "3840x2160 Fit"
+    ),
+    TestImage(
+        "Tall (FitWidth)", "https://picsum.photos/800/2400",
+        ContentScale.FitWidth,
+        description = "800x2400 FitWidth — vertical scroll"
+    ),
+    TestImage(
+        "Wide (FitHeight)", "https://picsum.photos/3000/800",
+        ContentScale.FitHeight,
+        description = "3000x800 FitHeight — horizontal scroll"
+    ),
+    TestImage(
+        "Large", "https://picsum.photos/4000/3000",
+        description = "4000x3000 Fit"
+    ),
+    TestImage(
+        "Square", "https://picsum.photos/2000/2000",
+        description = "2000x2000 Fit"
+    ),
 )
 
 fun main() = application {
@@ -68,22 +89,45 @@ fun main() = application {
                         )
                     }
 
-                    // Navigation bar
-                    Row(
+                    // Bottom bar
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        testImages.forEachIndexed { index, img ->
-                            Button(
-                                onClick = { selectedIndex = index },
-                                enabled = index != selectedIndex
-                            ) {
-                                Text(img.name, style = MaterialTheme.typography.labelSmall)
+                        // Image selector buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            testImages.forEachIndexed { index, img ->
+                                Button(
+                                    onClick = { selectedIndex = index },
+                                    enabled = index != selectedIndex
+                                ) {
+                                    Text(img.name, style = MaterialTheme.typography.labelSmall)
+                                }
                             }
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            // Gesture guide
+                            Text(
+                                text = "Scroll: pan | Ctrl/Cmd+Scroll: zoom | Drag: pan | Double-click: zoom toggle",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.End
+                            )
                         }
+
+                        // Image info
+                        Text(
+                            text = image.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                 }
             }

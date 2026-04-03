@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -275,6 +276,100 @@ internal fun TesseraImageContent(
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
+                        .pointerInput(contentScale) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (event.type != PointerEventType.Scroll) continue
+                                    val change = event.changes.firstOrNull() ?: continue
+                                    val scrollX = change.scrollDelta.x
+                                    val scrollY = change.scrollDelta.y
+                                    if (scrollX == 0f && scrollY == 0f) continue
+
+                                    val isZoomModifier = isZoomModifierPressed(event)
+                                    change.consume()
+                                    if (showScrollIndicators) lastInteractionTime = currentTimeMillis()
+
+                                    tesseraState?.imageInfo?.let { imageInfo ->
+                                        val imageWidth = imageInfo.width.toFloat()
+                                        val imageHeight = imageInfo.height.toFloat()
+                                        val viewWidth = size.width
+                                        val viewHeight = size.height
+                                        val fitScale = computeFitScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
+
+                                        if (isZoomModifier) {
+                                            // Ctrl/Cmd + Scroll → Zoom toward cursor
+                                            if (scrollY == 0f) return@let
+                                            val zoomFactor = if (scrollY < 0) 1.1f else 1f / 1.1f
+                                            val oldTotalScale = fitScale * scale
+                                            val newScale = (scale * zoomFactor).coerceIn(minScale, maxScale)
+                                            val newTotalScale = fitScale * newScale
+
+                                            val cursorPos = change.position
+                                            val scaledWidth = imageWidth * oldTotalScale
+                                            val scaledHeight = imageHeight * oldTotalScale
+                                            val centerX = (viewWidth - scaledWidth) / 2f
+                                            val centerY = (viewHeight - scaledHeight) / 2f
+                                            val baseOff = Offset(centerX + offset.x, centerY + offset.y)
+
+                                            val imagePointX = (cursorPos.x - baseOff.x) / oldTotalScale
+                                            val imagePointY = (cursorPos.y - baseOff.y) / oldTotalScale
+
+                                            val newScaledW = imageWidth * newTotalScale
+                                            val newScaledH = imageHeight * newTotalScale
+                                            val newCenterX = (viewWidth - newScaledW) / 2f
+                                            val newCenterY = (viewHeight - newScaledH) / 2f
+
+                                            val newBaseX = cursorPos.x - (imagePointX * newTotalScale)
+                                            val newBaseY = cursorPos.y - (imagePointY * newTotalScale)
+                                            val newOffsetX = newBaseX - newCenterX
+                                            val newOffsetY = newBaseY - newCenterY
+
+                                            val isZoomedIn = newScale > zoomThreshold
+                                            val resolved = resolveContentScale(contentScale, imageWidth, imageHeight, viewWidth.toFloat(), viewHeight.toFloat())
+                                            val overflows = resolved == ContentScale.FitWidth || resolved == ContentScale.FitHeight
+                                            if (!isZoomedIn && !overflows) {
+                                                offset = Offset.Zero
+                                                scale = minScale
+                                            } else {
+                                                val finalScale = if (!isZoomedIn) minScale else newScale
+                                                val finalTotalScale = fitScale * finalScale
+                                                val finalScaledW = imageWidth * finalTotalScale
+                                                val finalScaledH = imageHeight * finalTotalScale
+                                                val maxOffsetX = if (finalScaledW > viewWidth) (finalScaledW - viewWidth) / 2f else 0f
+                                                val maxOffsetY = if (finalScaledH > viewHeight) (finalScaledH - viewHeight) / 2f else 0f
+                                                offset = Offset(
+                                                    x = newOffsetX.coerceIn(-maxOffsetX, maxOffsetX),
+                                                    y = newOffsetY.coerceIn(-maxOffsetY, maxOffsetY)
+                                                )
+                                                scale = finalScale
+                                            }
+                                        } else {
+                                            // Plain scroll → Pan
+                                            val totalScale = fitScale * scale
+                                            val scaledWidth = imageWidth * totalScale
+                                            val scaledHeight = imageHeight * totalScale
+
+                                            val canPanX = scaledWidth > viewWidth
+                                            val canPanY = scaledHeight > viewHeight
+                                            if (!canPanX && !canPanY) return@let
+
+                                            val panSpeed = 20f
+                                            val panX = -scrollX * panSpeed
+                                            val panY = -scrollY * panSpeed
+
+                                            val maxOffsetX = if (canPanX) (scaledWidth - viewWidth) / 2f else 0f
+                                            val maxOffsetY = if (canPanY) (scaledHeight - viewHeight) / 2f else 0f
+
+                                            offset = Offset(
+                                                x = (offset.x + panX).coerceIn(-maxOffsetX, maxOffsetX),
+                                                y = (offset.y + panY).coerceIn(-maxOffsetY, maxOffsetY)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)

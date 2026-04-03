@@ -24,3 +24,5 @@ internal actual fun currentTimeMillis(): Long = System.currentTimeMillis()
 
 actual val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO
 internal actual val imageLoadDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO
+
+internal actual fun isZoomModifierPressed(event: androidx.compose.ui.input.pointer.PointerEvent): Boolean = false
