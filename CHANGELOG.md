@@ -7,6 +7,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Desktop (JVM) platform support** (#16, #17)
+  - `DesktopRegionDecoder` using `javax.imageio` with subsampled image cache + tile extraction
+  - `DesktopImageLoader` with HTTP validation, atomic staging file, `Files.move()`
+  - Mouse/trackpad gestures: Ctrl/Cmd+Scroll → zoom, plain scroll → pan, drag, double-click
+  - EXIF orientation support via ImageIO metadata XML parsing
+  - Desktop sample app (`sample-desktop`) with image selector and gesture guide
+  - 31 Desktop unit tests (DesktopRegionDecoder, DesktopImageLoader, Platform)
+- **Web (Wasm) platform support** (#34)
+  - `WasmRegionDecoder` using Skia `Surface.makeRasterN32Premul` + `drawImageRect` tile extraction
+  - `WasmImageLoader` using `fetch()` API via `kotlin.js.Promise` + `kotlinx.coroutines.await()`
+  - Platform actuals: `console.error/warn`, `Date.now()`, `Dispatchers.Default`
+  - Web sample app (`sample-web`) with `CanvasBasedWindow`
+  - Kotlin/Wasm `js()` interop: comma operator pattern to avoid NPE from undefined returns
+- **Maven Central publishing** (#31)
+  - vanniktech maven-publish plugin with SonatypeHost.CENTRAL_PORTAL
+  - In-memory GPG signing with Base64-encoded keys
+  - Tag-based GitHub Actions release workflow
+- **ReadMode with ContentScale** (#33)
+  - `ContentScale` enum: Fit, FitWidth, FitHeight, Auto
+  - Auto detection using 1.5x aspect ratio threshold
+  - FitWidth for tall images (webtoons), FitHeight for wide images (panoramas)
+- **Scroll indicators and minimap** (#32)
+  - Thin scroll bars on right/bottom edges when zoomed
+  - Minimap preview thumbnail with viewport rectangle in bottom-left
+  - Fade animation: 1.5s hold → 0.5s fade-out
+- **Compose UI test infrastructure** (#29)
+  - 17 gesture integration tests using Robolectric + `createComposeRule()`
+  - FakeImageLoader, fakeDecoderFactory for isolated testing
+  - Tests: double-tap zoom, dismiss gesture, pager swipes, ContentScale modes, error states
 - **CGImageSource-based region decoder for iOS** (#25)
   - Subsample decoding with `kCGImageSourceSubsampleFactor` (1/2, 1/4, 1/8)
   - Skia tile extraction at ~1ms per tile
@@ -34,6 +63,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - JitPack publishing configuration (#10)
 
 ### Changed
+- **Group ID**: `com.github.bentleypark.tessera` → `io.github.bentleypark` for Maven Central
+- **Build targets**: Added `jvm("desktop")` and `wasmJs { browser() }` to tessera-core
+- **.gitignore**: Individual `/module/build` patterns → global `**/build/`
+- **`repositoriesMode`**: `FAIL_ON_PROJECT_REPOS` → `PREFER_PROJECT` (required by Kotlin/Wasm Node.js/yarn repos)
+- **Scroll gesture**: Added `isZoomModifierPressed` expect/actual for Desktop Ctrl/Cmd+Scroll zoom
 - **Package rename**: `com.naemomlab.tessera` → `com.github.bentleypark.tessera` (#27)
 - **iOS decoder**: IosRegionDecoder (Skia full-load) → CgImageSourceRegionDecoder (subsample + Skia hybrid)
 - **Thread safety**: TesseraState split into initializeDecoder/applyInitResult, decodeTile/cacheTile
