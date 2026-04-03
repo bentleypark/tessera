@@ -12,11 +12,12 @@ Tessera is a memory-efficient image viewer for Compose Multiplatform that uses t
 
 ### Supported Platforms
 
-| Platform | Status |
-|----------|--------|
-| Android  | Stable |
-| iOS      | Stable |
-| Desktop  | Planned |
+| Platform | Status | Decoder Strategy |
+|----------|--------|-----------------|
+| Android  | Stable | BitmapRegionDecoder (true region decoding) |
+| iOS      | Stable | CGImageSource subsample + Skia tile extraction |
+| Desktop  | Stable | ImageIO subsample cache + tile extraction |
+| Web      | Experimental | Skia Surface + drawImageRect (Kotlin/Wasm) |
 
 ### Key Features
 
@@ -108,6 +109,45 @@ let coilLoader = CoilImageLoader.companion.create()
 MainViewControllerKt.MainViewController(imageLoader: coilLoader)
 ```
 
+### Desktop Usage
+
+```kotlin
+fun main() = application {
+    Window(title = "Tessera Desktop") {
+        TesseraImage(
+            imageUrl = "https://example.com/large-image.jpg",
+            modifier = Modifier.fillMaxSize(),
+            showScrollIndicators = true
+        )
+    }
+}
+```
+
+**Desktop Gestures:**
+
+| Gesture | Action |
+|---------|--------|
+| Scroll (trackpad/wheel) | Pan image |
+| Ctrl/Cmd + Scroll | Zoom in/out (cursor-based) |
+| Click + Drag | Pan image |
+| Double-click | Zoom toggle (1x ↔ 3x) |
+
+### Web (Wasm) Usage
+
+```kotlin
+@OptIn(ExperimentalComposeUiApi::class)
+fun main() {
+    CanvasBasedWindow(title = "Tessera Web", canvasElementId = "ComposeTarget") {
+        TesseraImage(
+            imageUrl = "https://example.com/large-image.jpg",
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+```
+
+> **Note**: Web support is experimental (Kotlin/Wasm). Full image is loaded into memory — suitable for images up to ~30MP in typical browser environments.
+
 ## Performance
 
 Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
@@ -133,26 +173,28 @@ Benchmarked on iPhone 7 (A10 Fusion, 2GB RAM, iOS 15.8.5) — 5 runs each:
 
 ```
 tessera/
-├── tessera-core/     # Core library (Android + iOS, zero external deps)
-├── tessera-coil/     # Coil 3.x image loader (Android + iOS KMP)
-├── tessera-glide/    # Glide 5.x image loader (Android only)
-├── sample/           # Android sample app
-└── iosApp/           # iOS sample app (SwiftUI + Compose)
+├── tessera-core/      # Core library (Android + iOS + Desktop + Web, zero external deps)
+├── tessera-coil/      # Coil 3.x image loader (Android + iOS KMP)
+├── tessera-glide/     # Glide 5.x image loader (Android only)
+├── sample/            # Android sample app
+├── sample-desktop/    # Desktop (JVM) sample app
+├── sample-web/        # Web (Wasm) sample app
+└── iosApp/            # iOS sample app (SwiftUI + Compose)
 ```
 
 | Module | Platforms | Dependencies |
 |--------|-----------|-------------|
-| `tessera-core` | Android, iOS | Compose Multiplatform, Coroutines |
+| `tessera-core` | Android, iOS, Desktop, Web | Compose Multiplatform, Coroutines |
 | `tessera-coil` | Android, iOS | Coil 3.x, Ktor |
 | `tessera-glide` | Android | Glide 5.x |
 
 ### Image Loading Strategy
 
-| Module | Android | iOS |
-|--------|---------|-----|
-| `tessera-core` | Built-in `NetworkImageLoader` (java.net.URL) | Built-in `IosImageLoader` (NSURLSession) |
-| `tessera-coil` | Coil + OkHttp | Coil + Ktor Darwin |
-| `tessera-glide` | Glide (file/content URI) | N/A |
+| Module | Android | iOS | Desktop | Web |
+|--------|---------|-----|---------|-----|
+| `tessera-core` | `NetworkImageLoader` (java.net.URL) | `IosImageLoader` (NSURLSession) | `DesktopImageLoader` (HttpURLConnection) | `WasmImageLoader` (fetch API) |
+| `tessera-coil` | Coil + OkHttp | Coil + Ktor Darwin | — | — |
+| `tessera-glide` | Glide (file/content URI) | N/A | — | — |
 
 ## Architecture
 
@@ -173,6 +215,8 @@ TileManager                         <- Grid Calculation
 RegionDecoder (expect/actual)       <- Platform Decoding
   |-- Android: BitmapRegionDecoder (true region decoding)
   |-- iOS: CGImageSource subsample + Skia tile extraction
+  |-- Desktop: ImageIO subsample cache + getSubimage extraction
+  |-- Web: Skia Image.makeFromEncoded + Surface.drawImageRect
 ```
 
 ### iOS Decoder: CGImageSource + Skia Hybrid
@@ -275,6 +319,13 @@ TesseraImage(
 # Android build + tests
 ./gradlew :tessera-core:testDebugUnitTest
 
+# Desktop build + tests
+./gradlew :tessera-core:compileKotlinDesktop
+./gradlew :tessera-core:desktopTest
+
+# Web (Wasm) build
+./gradlew :tessera-core:compileKotlinWasmJs
+
 # Build all modules
 ./gradlew :tessera-core:assembleDebug :tessera-coil:assembleDebug :tessera-glide:assembleDebug
 
@@ -284,14 +335,34 @@ TesseraImage(
 # iOS framework with Coil
 ./gradlew :tessera-coil:linkDebugFrameworkIosSimulatorArm64
 
+# Run sample apps
+./gradlew :sample-desktop:run                          # Desktop
+./gradlew :sample-web:wasmJsBrowserDevelopmentRun      # Web (localhost:8080)
+
 # All platform tests
 ./gradlew :tessera-core:allTests
+```
+
+### Test Infrastructure
+
+| Source Set | Framework | Tests | Description |
+|-----------|-----------|-------|-------------|
+| `commonTest` | kotlin.test | 19+ | ContentScale, ExifUtils, TileManager, Models |
+| `androidUnitTest` | Robolectric + Compose UI Test | 17+ | Gesture integration, TesseraState lifecycle |
+| `desktopTest` | JUnit + Skia runtime | 31+ | DesktopRegionDecoder, DesktopImageLoader, Platform |
+
+```bash
+# Run all tests
+./gradlew :tessera-core:testDebugUnitTest   # Android (Robolectric)
+./gradlew :tessera-core:desktopTest          # Desktop (JVM)
 ```
 
 ## Requirements
 
 - **Android**: API 28+ (Android 9)
 - **iOS**: iOS 15+
+- **Desktop**: JDK 21+ (macOS, Windows, Linux)
+- **Web**: Modern browser with WebGL + WebAssembly support
 - **Kotlin**: 2.3.0+
 - **Compose Multiplatform**: 1.8.0+
 - **JDK**: 21+
