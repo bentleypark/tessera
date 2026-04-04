@@ -1,7 +1,7 @@
 # Tessera
 
 <p align="center">
-  <img src="art/social_preview.png" alt="Tessera - Compose Multiplatform Tile-Based Image Viewer" width="100%">
+  <img src="art/social_preview.png" alt="Tessera - Compose Multiplatform Tile-Based Image Viewer" width="720">
 </p>
 
 > **Tessera** (Latin: "small tile piece") — A Compose Multiplatform tile-based high-resolution image viewer
