@@ -1,5 +1,3 @@
-# Tessera
-
 <p align="center">
   <img src="art/social_preview.png" alt="Tessera - Compose Multiplatform Tile-Based Image Viewer" width="720">
 </p>
