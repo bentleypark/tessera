@@ -1,5 +1,4 @@
 import com.vanniktech.maven.publish.SonatypeHost
-import java.util.Base64
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -105,10 +104,7 @@ signing {
     val signingPassword = project.findProperty("signing.password") as String?
 
     if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
-        useInMemoryPgpKeys(
-            String(Base64.getDecoder().decode(signingKey)),
-            signingPassword
-        )
+        useInMemoryPgpKeys(signingKey, signingPassword)
         sign(publishing.publications)
     }
 }
