@@ -1,5 +1,9 @@
 # Tessera
 
+<p align="center">
+  <img src="art/social_preview.png" alt="Tessera - Compose Multiplatform Tile-Based Image Viewer" width="100%">
+</p>
+
 > **Tessera** (Latin: "small tile piece") — A Compose Multiplatform tile-based high-resolution image viewer
 
 [![CI](https://github.com/bentleypark/tessera/actions/workflows/ci.yml/badge.svg)](https://github.com/bentleypark/tessera/actions/workflows/ci.yml)
