@@ -89,7 +89,7 @@ kotlin {
             implementation(libs.coroutines.android)
             implementation(libs.androidx.core)
             implementation(libs.androidx.exifinterface)
-            implementation(libs.compose.ui.tooling.preview)
+            compileOnly(libs.compose.ui.tooling.preview)
             compileOnly(libs.timber)
         }
     }
