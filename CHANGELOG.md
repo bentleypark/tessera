@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.0] - 2026-04-04
 
 ### Added
 - **Desktop (JVM) platform support** (#16, #17)
@@ -112,4 +112,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LRU cache: loadTile() now correctly tracks access order for cached tiles
 - SHA-256 for iOS temp file names (was hashCode, collision risk)
 
-[Unreleased]: https://github.com/bentleypark/tessera/commits/main
+[0.1.0]: https://github.com/bentleypark/tessera/releases/tag/v0.1.0
