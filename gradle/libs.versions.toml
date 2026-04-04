@@ -10,7 +10,7 @@ minSdk = "28"
 targetSdk = "36"
 agp = "9.1.0"
 vanniktech = "0.30.0"
-tessera = "0.1.1"
+tessera = "1.0.0"
 
 [libraries]
 # Compose (Android BOM - sample app)
