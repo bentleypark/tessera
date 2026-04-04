@@ -418,6 +418,10 @@ TesseraImage(
 - **Compose Multiplatform**: 1.8.0+
 - **JDK**: 21+
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, build commands, and guidelines.
+
 ## License
 
 ```

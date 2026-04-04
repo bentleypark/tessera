@@ -25,19 +25,40 @@ Thank you for your interest in contributing to Tessera!
 # iOS framework
 ./gradlew :tessera-core:linkDebugFrameworkIosSimulatorArm64
 
-# Run all tests
+# Desktop
+./gradlew :tessera-core:desktopJar
+
+# Run all tests (Android + iOS + Desktop + Web)
 ./gradlew :tessera-core:allTests
+```
+
+### Sample Apps
+
+```bash
+# Android
+./gradlew :sample:installDebug
+
+# Desktop
+./gradlew :sample-desktop:run
+
+# Web
+./gradlew :sample-web:wasmJsBrowserDevelopmentRun
 ```
 
 ### Project Structure
 
 ```
 tessera-core/src/
-  commonMain/    # Shared code (TileManager, TesseraState, models)
-  commonTest/    # Shared tests
-  androidMain/   # Android implementation (BitmapRegionDecoder, Glide/Coil)
-  androidUnitTest/ # Android-specific tests (Robolectric)
-  iosMain/       # iOS implementation (Skia decoder, NSURLSession)
+  commonMain/       # Shared code (TileManager, TesseraState, models)
+  commonTest/       # Shared tests
+  androidMain/      # Android (BitmapRegionDecoder, NetworkImageLoader)
+  androidUnitTest/  # Android tests (Robolectric + Compose UI)
+  iosMain/          # iOS (CGImageSource + Skia decoder)
+  desktopMain/      # Desktop JVM (ImageIO decoder)
+  desktopTest/      # Desktop tests
+  wasmJsMain/       # Web/Wasm (Skia Surface decoder, fetch API)
+tessera-coil/       # Coil 3.x companion (Android + iOS)
+tessera-glide/      # Glide companion (Android only)
 ```
 
 ## Pull Request Process
@@ -59,10 +80,10 @@ tessera-core/src/
 
 When reporting bugs, include:
 
-- Platform (Android/iOS) and OS version
+- Platform (Android/iOS/Desktop/Web) and OS version
 - Image size and format
 - Steps to reproduce
-- Relevant logs
+- Relevant logs (filter by `TesseraPerf` tag for performance issues)
 
 ## License
 

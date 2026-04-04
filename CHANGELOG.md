@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Thin scroll bars on right/bottom edges when zoomed
   - Minimap preview thumbnail with viewport rectangle in bottom-left
   - Fade animation: 1.5s hold → 0.5s fade-out
+- **Type-safe rotation API** (#37)
+  - `ImageRotation` enum (None, Rotate90, Rotate180, Rotate270) replaces `rotation: Int`
+  - `next()` function for clockwise cycling
+  - Compile-time safety: invalid angles (45°, -90°) are impossible
 - **User-controlled rotation** (#36)
   - `rotation` parameter (0°/90°/180°/270°) on TesseraImage across all 4 platforms
   - `graphicsLayer { rotationZ }` with `clipToBounds()` for overflow prevention
@@ -82,13 +86,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Android sample app
 - iOS sample app with SwiftUI integration
 - CI/CD with GitHub Actions for Android and iOS builds (#9)
-- JitPack publishing configuration (#10)
 
 ### Changed
 - **Group ID**: `com.github.bentleypark.tessera` → `io.github.bentleypark` for Maven Central
 - **Build targets**: Added `jvm("desktop")` and `wasmJs { browser() }` to tessera-core
 - **.gitignore**: Individual `/module/build` patterns → global `**/build/`
 - **`repositoriesMode`**: `FAIL_ON_PROJECT_REPOS` → `PREFER_PROJECT` (required by Kotlin/Wasm Node.js/yarn repos)
+- **Rotation API**: `rotation: Int` → `rotation: ImageRotation` enum for compile-time safety (#37)
+- **Distribution**: JitPack → Maven Central (vanniktech maven-publish)
 - **Sample apps**: Streamlined from 14 to 7 test images (2K, 4K, 108MP, EXIF 90°, PNG, FitWidth, Auto)
 - **Scroll gesture**: Added `isZoomModifierPressed` expect/actual for Desktop Ctrl/Cmd+Scroll zoom
 - **Package rename**: `com.naemomlab.tessera` → `com.github.bentleypark.tessera` (#27)

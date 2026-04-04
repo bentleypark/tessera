@@ -1,0 +1,65 @@
+name: Bug Report
+description: Report a bug in Tessera
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Desktop (JVM)
+        - Web (Wasm)
+        - Multiple
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      placeholder: "e.g., Android 14, iOS 17.4, macOS 14.5"
+    validations:
+      required: true
+
+  - type: input
+    id: tessera-version
+    attributes:
+      label: Tessera Version
+      placeholder: "e.g., 0.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: image-info
+    attributes:
+      label: Image Info
+      description: Image size, format, and source (URL, local file, resource)
+      placeholder: "4K JPEG (3840x2160), loaded from URL"
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant logs (filter by `TesseraPerf` for performance issues)
+      render: shell
