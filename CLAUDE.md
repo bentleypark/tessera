@@ -31,14 +31,20 @@ Follow this order for every code change:
 
 ```
 tessera/
-├── tessera-core/          # KMP core library (Android + iOS)
+├── tessera-core/          # KMP core library (Android + iOS + Desktop + Web)
 │   ├── src/commonMain/    # Shared code (TileManager, TesseraState, models)
 │   ├── src/commonTest/    # Shared tests
 │   ├── src/androidMain/   # Android impl (BitmapRegionDecoder, NetworkImageLoader)
 │   ├── src/androidUnitTest/ # Android tests (Robolectric)
-│   └── src/iosMain/       # iOS impl (Skia decoder, NSData loader)
+│   ├── src/iosMain/       # iOS impl (CgImageSource decoder, NSData loader)
+│   ├── src/desktopMain/   # Desktop/JVM impl (ImageIO decoder, HTTP/file loader)
+│   ├── src/desktopTest/   # Desktop tests
+│   └── src/wasmJsMain/    # Web/Wasm impl (Skia decoder, HTTP loader)
 ├── tessera-glide/         # Glide companion module (Android only)
+├── tessera-coil/          # Coil 3.x companion module (Android + iOS)
 ├── sample/                # Android sample app
+├── sample-desktop/        # Desktop sample app (Compose Desktop)
+├── sample-web/            # Web sample app (Wasm/JS)
 └── iosApp/                # iOS sample app (SwiftUI + Compose)
 ```
 
@@ -59,6 +65,19 @@ tessera/
 ./gradlew :tessera-core:linkDebugFrameworkIosArm64           # Device
 ./gradlew :tessera-core:iosSimulatorArm64Test                # iOS tests
 cd iosApp && xcodegen generate                                # Xcode project
+```
+
+### Desktop
+```bash
+./gradlew :sample-desktop:run                        # Run desktop sample
+./gradlew :sample-desktop:packageUberJarForCurrentOS # Fat JAR
+./gradlew :sample-desktop:packageDmg                 # macOS DMG
+```
+
+### Web
+```bash
+./gradlew :sample-web:wasmJsBrowserDevelopmentRun    # Dev server
+./gradlew :sample-web:wasmJsBrowserProductionWebpack # Production build
 ```
 
 ### All Platforms
@@ -83,8 +102,12 @@ cd iosApp && xcodegen generate                                # Xcode project
 ### expect/actual Pattern
 Platform-specific implementations are separated via `expect`/`actual`:
 - `Platform.kt` — logging (`logError`, `logWarning`), `currentTimeMillis()`, `ioDispatcher`
-- `ImageSource.kt` — Android: FileSource/ResourceSource, iOS: PathSource/DataSource
-- `RegionDecoder` — interface with platform implementations (Android: BitmapRegionDecoder, iOS: Skia)
+- `ImageSource.kt` — Android: FileSource/ResourceSource, iOS: PathSource/DataSource, Desktop: FileSource, Web: DataSource
+- `RegionDecoder` — interface with platform implementations:
+  - Android: `BitmapRegionDecoder` (partial decoding)
+  - iOS: `CgImageSourceRegionDecoder` (CGImageSource + Skia, subsample cache)
+  - Desktop: `DesktopRegionDecoder` (ImageIO, subsample cache)
+  - Web: `WasmRegionDecoder` (Skia, full image decode)
 
 ### No Platform Types in commonMain
 - `android.graphics.Rect` → `TileRect`
@@ -94,16 +117,17 @@ Platform-specific implementations are separated via `expect`/`actual`:
 - `System.currentTimeMillis()` → `currentTimeMillis()`
 
 ### Image Loading
-```
-RoutingImageLoader (routing by URI scheme)
-├── NetworkImageLoader (http/https — java.net.URL download)
-├── ResourceImageLoader (android.resource:// — ContentResolver)
-└── [optional] GlideImageLoader (tessera-glide, file/content URI)
-```
+Platform-specific `ImageLoaderStrategy` implementations:
+- **Android**: `NetworkImageLoader` (http/https), `ResourceImageLoader` (android.resource://)
+- **iOS**: `IosImageLoader` (NSData.dataWithContentsOfURL)
+- **Desktop**: `DesktopImageLoader` (http/https + file://)
+- **Web**: `WasmImageLoader` (http/https)
 
-- tessera-core has zero external image library dependencies
-- Glide is separated into the `tessera-glide` companion module
-- iOS uses `IosImageLoader` (NSData.dataWithContentsOfURL)
+Companion modules (optional):
+- `tessera-glide` — GlideImageLoader (Android only, file/content URI)
+- `tessera-coil` — CoilImageLoader (Android + iOS KMP, Coil 3.x)
+
+tessera-core has zero external image library dependencies.
 
 ### Tile Cache
 - LRU-based (`maxCacheSize` default: 150)
@@ -132,12 +156,14 @@ RoutingImageLoader (routing by URI scheme)
 - iOS: Use Xcode Instruments (Allocations, Core Animation)
 
 ## Known Limitations
-- **IosRegionDecoder**: Loads entire image into memory (no CGImageSource partial decoding yet)
-- **Desktop**: Planned for Phase 4 (not implemented)
+- **WasmRegionDecoder**: Loads entire image into memory (no partial decoding in Wasm/Skia)
+- **Web tests**: No wasmJsTest source set yet (Desktop/Android/iOS have tests)
+- **CI/CD coverage**: Desktop and Web builds are not tested in GitHub Actions
 - **Configuration cache**: Disabled due to AGP 9 + KMP compatibility
 
 ## CI/CD
 - GitHub Actions on push to main and PRs
-- Android: ubuntu-latest, JDK 21
-- iOS: macos-15, JDK 21
-- Maven Central: tag-based publishing (vanniktech maven-publish plugin)
+- Android: ubuntu-latest, JDK 21 (build + unit tests)
+- iOS: macos-15, JDK 21 (framework link + tests)
+- Desktop/Web: not yet included in CI
+- Maven Central: tag-based publishing via release.yml (vanniktech maven-publish plugin)
