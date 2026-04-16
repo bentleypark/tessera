@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
  * @param imageLoader Image loading strategy (default: IosImageLoader)
  * @param contentDescription Accessibility description
  * @param enableDismissGesture Enable vertical drag-to-dismiss gesture
+ * @param state Observable viewer state created via [rememberTesseraState]
  * @param onDismiss Callback invoked when dismiss gesture is completed
  */
 @Composable
@@ -30,6 +31,7 @@ fun TesseraImage(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    state: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: IosImageLoader() }
@@ -49,6 +51,7 @@ fun TesseraImage(
         enablePagerIntegration = enablePagerIntegration,
         showScrollIndicators = showScrollIndicators,
         rotation = rotation,
+        viewerState = state,
         onDismiss = onDismiss
     )
 }

@@ -109,6 +109,14 @@ Platform-specific implementations are separated via `expect`/`actual`:
   - Desktop: `DesktopRegionDecoder` (ImageIO, subsample cache)
   - Web: `WasmRegionDecoder` (Skia, full image decode)
 
+### Public State API
+- `TesseraViewerState` — public read-only state holder (`@Stable`, `internal set`)
+- `rememberTesseraState()` — Composable factory (follows `rememberLazyListState()` convention)
+- `TesseraViewerState.sync()` — internal bulk update (called from SideEffect on main thread)
+- `syncViewerState()` — extracted testable function for state synchronization
+- State sync runs in `SideEffect { }` block (not during composition)
+- Optional `state` parameter on all platform `TesseraImage` wrappers
+
 ### No Platform Types in commonMain
 - `android.graphics.Rect` → `TileRect`
 - `android.graphics.Bitmap` → `ImageBitmap`

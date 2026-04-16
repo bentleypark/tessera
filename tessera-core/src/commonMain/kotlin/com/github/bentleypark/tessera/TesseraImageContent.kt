@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,6 +71,7 @@ internal fun TesseraImageContent(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    viewerState: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
@@ -166,6 +168,23 @@ internal fun TesseraImageContent(
                     currentZoomLevel = newZoomLevel
                 }
 
+                // Skip tile loading when not zoomed in and the entire image fits
+                // in the viewport — preview bitmap is sufficient in this case.
+                // FitWidth/FitHeight modes may have scale=1.0 but only show a portion,
+                // so check that the viewport covers the full image dimensions.
+                // viewWidth/viewHeight are in image pixel coordinates (not screen pixels).
+                val vp = state.viewport
+                val info = state.imageInfo
+                if (vp.scale <= zoomThreshold && info != null &&
+                    vp.viewWidth >= info.width.toFloat() - 1f &&
+                    vp.viewHeight >= info.height.toFloat() - 1f
+                ) {
+                    logWarning("TesseraPerf", "skip tiles: preview sufficient " +
+                        "(viewport ${vp.viewWidth.toInt()}x${vp.viewHeight.toInt()} " +
+                        ">= image ${info.width}x${info.height}, scale=${vp.scale})")
+                    return@collect
+                }
+
                 val tilesToLoad = visibleTiles.filter { it.toKey() !in loadedTiles.keys }
 
                 if (tilesToLoad.isEmpty()) {
@@ -230,6 +249,27 @@ internal fun TesseraImageContent(
     DisposableEffect(Unit) {
         onDispose {
             tesseraState?.dispose()
+        }
+    }
+
+    // Sync internal state to public TesseraViewerState after each successful composition.
+    // State reads must happen during composition (not inside SideEffect lambda)
+    // so that Compose subscribes to changes and triggers recomposition.
+    if (viewerState != null) {
+        val syncScale = scale
+        val syncZoomLevel = currentZoomLevel
+        val syncTileCount = tesseraState?.cachedTileCount ?: 0
+        val syncTesseraState = tesseraState
+        val syncLoadError = loadError
+        SideEffect {
+            syncViewerState(
+                vs = viewerState,
+                scale = syncScale,
+                zoomLevel = syncZoomLevel,
+                tileCount = syncTileCount,
+                tesseraState = syncTesseraState,
+                loadError = syncLoadError
+            )
         }
     }
 
@@ -918,4 +958,33 @@ private fun DrawScope.drawMinimap(
         size = Size(viewportW, viewportH),
         style = Stroke(width = borderWidth)
     )
+}
+
+internal fun syncViewerState(
+    vs: TesseraViewerState,
+    scale: Float,
+    zoomLevel: Int,
+    tileCount: Int,
+    tesseraState: TesseraState?,
+    loadError: String?
+) {
+    if (tesseraState != null) {
+        vs.sync(
+            scale = scale,
+            zoomLevel = zoomLevel,
+            cachedTileCount = tileCount,
+            isLoading = tesseraState.isLoading,
+            imageInfo = tesseraState.imageInfo,
+            error = tesseraState.error ?: loadError
+        )
+    } else {
+        vs.sync(
+            scale = scale,
+            zoomLevel = zoomLevel,
+            cachedTileCount = tileCount,
+            isLoading = loadError == null,
+            imageInfo = null,
+            error = loadError
+        )
+    }
 }

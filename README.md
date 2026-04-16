@@ -314,7 +314,38 @@ Three distinct decoding tiers exist across platforms:
 | `enablePagerIntegration` | Boolean | `false` | Pass horizontal swipes to parent Pager |
 | `showScrollIndicators` | Boolean | `false` | Show scroll position indicators when zoomed |
 | `rotation` | ImageRotation | `ImageRotation.None` | User-controlled rotation (None, Rotate90, Rotate180, Rotate270) |
+| `state` | TesseraViewerState? | `null` | Observable viewer state (see below) |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
+
+### State Observation (rememberTesseraState)
+
+Use `rememberTesseraState()` to observe the viewer's internal state from outside the composable:
+
+```kotlin
+val state = rememberTesseraState()
+
+TesseraImage(
+    imageUrl = "https://example.com/large-image.jpg",
+    modifier = Modifier.fillMaxSize(),
+    state = state
+)
+
+// Observe zoom level, loading status, image metadata
+Text("Scale: ${"%.1f".format(state.scale)}x")
+Text("Loading: ${state.isLoading}")
+Text("Tiles cached: ${state.cachedTileCount}")
+state.imageInfo?.let { Text("Size: ${it.width}x${it.height}") }
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `scale` | Float | Current user zoom scale (1.0 = no zoom) |
+| `isLoading` | Boolean | True while downloading and decoding |
+| `imageInfo` | ImageInfo? | Image width, height, mimeType (null until loaded) |
+| `error` | String? | Error message on failure |
+| `zoomLevel` | Int | Current tile zoom level (0-3, -1 before load) |
+| `cachedTileCount` | Int | Number of tiles in memory cache |
+| `isReady` | Boolean | Convenience: loaded successfully, no error |
 
 ### HorizontalPager Integration
 
