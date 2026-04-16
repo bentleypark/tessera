@@ -106,9 +106,14 @@ class ImageDecoder(
         val currentDecoder = decoder ?: return null
 
         return try {
+            val format = ImageFormat.fromMimeType(imageInfo.mimeType)
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = if (format == ImageFormat.JPEG) {
+                    Bitmap.Config.RGB_565
+                } else {
+                    Bitmap.Config.ARGB_8888
+                }
             }
 
             // Remap display coordinates to raw pixel coordinates

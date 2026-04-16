@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.semantics.contentDescription
@@ -74,6 +75,8 @@ internal fun TesseraImageContent(
     viewerState: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
+    val density = LocalDensity.current.density
+    val tileSize = remember(density) { (256 * density).roundToInt().coerceIn(256, 512) }
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var scale by remember { mutableFloatStateOf(1f) }
@@ -105,7 +108,7 @@ internal fun TesseraImageContent(
         }
     }
 
-    LaunchedEffect(imageUrl, imageLoader) {
+    LaunchedEffect(imageUrl, imageLoader, tileSize) {
         try {
             val previousState = tesseraState
             tesseraState = null
@@ -123,7 +126,7 @@ internal fun TesseraImageContent(
             }
             val source = result.getOrNull()
             if (source != null) {
-                val state = TesseraState(source, decoderFactory)
+                val state = TesseraState(source, decoderFactory, tileSize = tileSize)
                 val initResult = withContext(imageLoadDispatcher) {
                     state.initializeDecoder()
                 }

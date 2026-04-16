@@ -17,7 +17,8 @@ import kotlin.coroutines.cancellation.CancellationException
 class TesseraState(
     private val imageSource: ImageSource,
     private val decoderFactory: (ImageSource) -> RegionDecoder,
-    private val maxCacheSize: Int = 150
+    private val tileSize: Int = 256,
+    private val maxCacheSize: Int = (150 * 256 * 256 / (tileSize * tileSize)).coerceAtLeast(50)
 ) {
     @Volatile
     private var decoder: RegionDecoder? = null
@@ -64,7 +65,7 @@ class TesseraState(
             val decoderTime = currentTimeMillis() - initStart
 
             decoder = regionDecoder
-            tileManager = TileManager(info)
+            tileManager = TileManager(info, tileSize)
 
             // Warn about large non-JPEG images (subsample APIs don't save memory for PNG, etc.)
             val format = ImageFormat.fromMimeType(info.mimeType)
