@@ -44,8 +44,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlin.coroutines.cancellation.CancellationException
@@ -171,21 +174,19 @@ internal fun TesseraImageContent(
                     currentZoomLevel = newZoomLevel
                 }
 
-                // Skip tile loading when not zoomed in and the entire image fits
-                // in the viewport — preview bitmap is sufficient in this case.
-                // FitWidth/FitHeight modes may have scale=1.0 but only show a portion,
-                // so check that the viewport covers the full image dimensions.
-                // viewWidth/viewHeight are in image pixel coordinates (not screen pixels).
-                val vp = state.viewport
-                val info = state.imageInfo
-                if (vp.scale <= zoomThreshold && info != null &&
-                    vp.viewWidth >= info.width.toFloat() - 1f &&
-                    vp.viewHeight >= info.height.toFloat() - 1f
-                ) {
-                    logWarning("TesseraPerf", "skip tiles: preview sufficient " +
-                        "(viewport ${vp.viewWidth.toInt()}x${vp.viewHeight.toInt()} " +
-                        ">= image ${info.width}x${info.height}, scale=${vp.scale})")
-                    return@collect
+                // Skip tile loading at zoom level 0 when the viewport covers the
+                // full image — the preview bitmap (1024px) is sufficient.
+                // FitWidth/FitHeight modes where the viewport only shows a portion
+                // of the image still load tiles for sharp scrollable content.
+                if (newZoomLevel == 0) {
+                    val vp = state.viewport
+                    val info = state.imageInfo
+                    if (info == null ||
+                        (vp.viewWidth >= info.width.toFloat() - 1f &&
+                         vp.viewHeight >= info.height.toFloat() - 1f)
+                    ) {
+                        return@collect
+                    }
                 }
 
                 val tilesToLoad = visibleTiles.filter { it.toKey() !in loadedTiles.keys }
@@ -212,26 +213,37 @@ internal fun TesseraImageContent(
                 var loadedCount = 0
                 var failCount = 0
 
-                sortedTiles.forEach { coordinate ->
+                // Decode tiles in parallel chunks matching decoder pool size.
+                // Each chunk is decoded concurrently, then cached immediately
+                // so tiles appear progressively instead of all at once.
+                val chunkSize = 2
+                sortedTiles.chunked(chunkSize).forEach { chunk ->
                     ensureActive()
 
-                    val key = coordinate.toKey()
-                    try {
-                        val bitmap = withContext(ioDispatcher) {
-                            state.decodeTile(coordinate)
-                        }
+                    val results = supervisorScope {
+                        chunk.map { coordinate ->
+                            async(ioDispatcher) {
+                                try {
+                                    coordinate to state.decodeTile(coordinate)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    logError("TesseraImage", "tile decode failed: ${coordinate.toKey()}", e)
+                                    coordinate to null
+                                }
+                            }
+                        }.awaitAll()
+                    }
 
+                    for ((coordinate, bitmap) in results) {
                         if (bitmap != null) {
                             state.cacheTile(coordinate, bitmap)
                             val loadTime = currentTimeMillis()
-                            loadedTiles = loadedTiles + (key to TileLoadInfo(loadTime, coordinate.zoomLevel))
+                            loadedTiles = loadedTiles + (coordinate.toKey() to TileLoadInfo(loadTime, coordinate.zoomLevel))
                             loadedCount++
+                        } else {
+                            failCount++
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logError("TesseraImage", "tile decode failed: $key", e)
-                        failCount++
                     }
                     yield()
                 }
