@@ -280,7 +280,7 @@ Three distinct decoding tiers exist across platforms:
 
 ### Memory Protection (iOS / Desktop)
 
-> Android uses `BitmapRegionDecoder` (true partial decode), so no subsampling step is needed — memory stays at tile level (~0.25MB per 256×256 tile) regardless of image size.
+> Android uses `BitmapRegionDecoder` (true partial decode), so no subsampling step is needed — memory stays at tile level regardless of image size. Tile size is dynamic based on display density (256–512px). JPEG tiles use `RGB_565` (2 bytes/pixel, ~128–512KB per tile); PNG and other alpha-capable formats use `ARGB_8888`. A pool of 2 decoder instances enables parallel tile decoding.
 
 | Image Size | Max Subsample | Decoded Resolution | Memory |
 |------------|--------------|-------------------|--------|
@@ -290,12 +290,12 @@ Three distinct decoding tiers exist across platforms:
 
 ### Zoom Levels
 
-| Level | Scale Range | Sample Size | Resolution |
-|-------|-------------|-------------|------------|
-| 0     | 1.0x-1.5x  | 2           | Half       |
-| 1     | 1.5x-3.0x  | 1           | Full       |
-| 2     | 3.0x-6.0x  | 1           | Full       |
-| 3     | 6.0x+      | 1           | Full       |
+| Level | Scale Range | Sample Size | Resolution | Note |
+|-------|-------------|-------------|------------|------|
+| 0     | 1.0x-1.5x  | 2           | Half       | Tiles skipped when preview covers viewport |
+| 1     | 1.5x-3.0x  | 1           | Full       | First level where tiles load |
+| 2     | 3.0x-6.0x  | 1           | Full       | |
+| 3     | 6.0x+      | 1           | Full       | |
 
 ## API Reference
 
