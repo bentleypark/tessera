@@ -15,8 +15,15 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Wrapper for Android's BitmapRegionDecoder to handle tile-based image decoding.
- * Uses a pool of decoder instances for parallel tile decoding (FileSource only).
+ * Uses a pool of decoder instances for parallel tile decoding when a file path
+ * is available (FileSource directly, ResourceSource via fallback file).
  * Automatically handles EXIF orientation for correct display.
+ *
+ * Pool size is limited to 2 by default. Each BitmapRegionDecoder instance
+ * retains a reference to the full encoded image data (memory-mapped for files,
+ * heap-buffered for streams). Multiple instances increase native memory pressure,
+ * especially for large images (e.g., a 10MB JPEG may add up to ~10MB per instance).
+ * Pool sizes above 2-3 risk OOM or ANR on low-RAM devices.
  */
 class ImageDecoder(
     private val imageSource: ImageSource,
