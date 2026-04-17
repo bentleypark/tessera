@@ -89,6 +89,7 @@ internal fun TesseraImageContent(
     val zoomThreshold = 1.01f
     var currentTime by remember { mutableLongStateOf(currentTimeMillis()) }
     var isDismissing by remember { mutableStateOf(false) }
+    var isGesturing by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(0L) }
 
     var dismissOffsetY by remember { mutableFloatStateOf(0f) }
@@ -159,10 +160,14 @@ internal fun TesseraImageContent(
     LaunchedEffect(tesseraState) {
         val state = tesseraState ?: return@LaunchedEffect
 
-        snapshotFlow { state.viewport }
-            .collect {
+        // Observe both viewport and gesture state. When isGesturing changes
+        // from true to false, snapshotFlow re-emits triggering tile load
+        // for the final viewport position.
+        snapshotFlow { state.viewport to isGesturing }
+            .collect { (_, gesturing) ->
                 if (isDismissing) return@collect
                 if (state.isLoading || state.error != null) return@collect
+                if (gesturing) return@collect
 
                 delay(20)
 
@@ -219,6 +224,7 @@ internal fun TesseraImageContent(
                 val chunkSize = 2
                 sortedTiles.chunked(chunkSize).forEach { chunk ->
                     ensureActive()
+                    if (isGesturing) return@collect
 
                     val results = supervisorScope {
                         chunk.map { coordinate ->
@@ -339,6 +345,9 @@ internal fun TesseraImageContent(
                             rotationZ = rotation.degrees.toFloat()
                             clip = true
                         }
+                        // Desktop scroll handler: isGesturing not set here because scroll
+                        // events are discrete (not continuous like touch), so each event
+                        // naturally debounces via the 20ms delay in tile loading.
                         .pointerInput(contentScale, rotation) {
                             awaitPointerEventScope {
                                 while (true) {
@@ -436,6 +445,7 @@ internal fun TesseraImageContent(
                         .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale, rotation) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                isGesturing = true
                                 var shouldConsume = !enablePagerIntegration
                                 var atEdge = false
                                 var totalPan = Offset.Zero
@@ -577,6 +587,7 @@ internal fun TesseraImageContent(
                                         }
                                     }
                                 } while (changes.fastAny { it.pressed })
+                                isGesturing = false
 
                                 // Double-tap detection: short gesture with no significant pan
                                 val gestureDuration = currentTimeMillis() - gestureStartTime
