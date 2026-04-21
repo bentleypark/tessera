@@ -144,9 +144,9 @@ class TileManagerTest {
             viewWidth = 256f,
             viewHeight = 256f
         )
-        val tiles = manager.getVisibleTiles(viewport)
+        val tiles = manager.getVisibleTiles(viewport, prefetchMargin = 0)
         assertTrue(tiles.isNotEmpty())
-        // All tiles should be in the offset region
+        // All tiles should be in the offset region (no prefetch margin)
         tiles.forEach { tile ->
             assertTrue(tile.col >= 2, "col ${tile.col} should be >= 2")
             assertTrue(tile.row >= 2, "row ${tile.row} should be >= 2")
@@ -301,6 +301,61 @@ class TileManagerTest {
 
         assertTrue(tilesLarge.size < tilesSmall.size,
             "512px tiles (${tilesLarge.size}) should be fewer than 256px tiles (${tilesSmall.size})")
+    }
+
+    // --- Prefetch margin ---
+
+    @Test
+    fun prefetchMargin_expandsVisibleTiles() {
+        val viewport = Viewport(
+            offsetX = 512f,
+            offsetY = 512f,
+            scale = 2.0f,
+            viewWidth = 500f,
+            viewHeight = 500f
+        )
+        val withoutMargin = manager.getVisibleTiles(viewport, prefetchMargin = 0)
+        val withMargin = manager.getVisibleTiles(viewport, prefetchMargin = 128)
+
+        assertTrue(withMargin.size > withoutMargin.size,
+            "Prefetch margin should include more tiles: ${withMargin.size} > ${withoutMargin.size}")
+        // All non-margin tiles should be included in margin result
+        withoutMargin.forEach { tile ->
+            assertTrue(tile in withMargin, "Visible tile $tile should be in prefetched set")
+        }
+    }
+
+    @Test
+    fun prefetchMargin_zero_matchesExactViewport() {
+        val viewport = Viewport(
+            offsetX = 256f,
+            offsetY = 256f,
+            scale = 2.0f,
+            viewWidth = 256f,
+            viewHeight = 256f
+        )
+        val noMargin = manager.getVisibleTiles(viewport, prefetchMargin = 0)
+        val defaultMargin = manager.getVisibleTiles(viewport)
+
+        assertTrue(defaultMargin.size >= noMargin.size,
+            "Default margin should include at least as many tiles")
+    }
+
+    @Test
+    fun prefetchMargin_clampedToImageBounds() {
+        // Viewport at top-left corner — margin can't go below 0
+        val viewport = Viewport(
+            offsetX = 0f,
+            offsetY = 0f,
+            scale = 2.0f,
+            viewWidth = 300f,
+            viewHeight = 300f
+        )
+        val tiles = manager.getVisibleTiles(viewport, prefetchMargin = 500)
+        tiles.forEach { tile ->
+            assertTrue(tile.col >= 0, "col should be >= 0")
+            assertTrue(tile.row >= 0, "row should be >= 0")
+        }
     }
 
     @Test
