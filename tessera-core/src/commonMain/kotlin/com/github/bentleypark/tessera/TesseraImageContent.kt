@@ -180,19 +180,10 @@ internal fun TesseraImageContent(
                     currentZoomLevel = newZoomLevel
                 }
 
-                // Skip tile loading at zoom level 0 when the viewport covers the
-                // full image — the preview bitmap (1024px) is sufficient.
-                // FitWidth/FitHeight modes where the viewport only shows a portion
-                // of the image still load tiles for sharp scrollable content.
-                if (newZoomLevel == 0) {
-                    val vp = state.viewport
-                    val info = state.imageInfo
-                    if (info == null ||
-                        (vp.viewWidth >= info.width.toFloat() - 1f &&
-                         vp.viewHeight >= info.height.toFloat() - 1f)
-                    ) {
-                        return@collect
-                    }
+                if (newZoomLevel == 0 &&
+                    shouldSkipZeroLevelTiles(state.viewport, state.imageInfo)
+                ) {
+                    return@collect
                 }
 
                 val tilesToLoad = visibleTiles.filter { it.toKey() !in loadedTiles.keys }
@@ -838,6 +829,25 @@ internal fun resolveContentScale(
         imageAspect > viewAspect * 1.5f -> ContentScale.FitHeight // wide image
         else -> ContentScale.Fit
     }
+}
+
+/**
+ * At zoom level 0 the preview bitmap (~1024px) is already on screen. Loading tiles
+ * only pays off when the viewport shows a *partial* slice of the source image —
+ * i.e. FitWidth/FitHeight modes where the user will scroll to see more. If the
+ * viewport already covers the full image (or image info is missing), skip tiles.
+ *
+ * `viewport.viewWidth/viewHeight` are in source-image coordinates (see
+ * TesseraImageContent viewport construction): they represent the image area
+ * clipped to the viewport, so equaling `imageInfo.width/height` means full cover.
+ */
+internal fun shouldSkipZeroLevelTiles(
+    viewport: Viewport,
+    imageInfo: ImageInfo?
+): Boolean {
+    if (imageInfo == null) return true
+    return viewport.viewWidth >= imageInfo.width.toFloat() - 1f &&
+        viewport.viewHeight >= imageInfo.height.toFloat() - 1f
 }
 
 internal fun computeFitScale(
