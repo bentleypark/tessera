@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -87,6 +88,8 @@ internal fun TesseraImageContent(
     var offset by remember { mutableStateOf(Offset.Zero) }
     var loadedTiles by remember { mutableStateOf<Map<String, TileLoadInfo>>(emptyMap()) }
     var currentZoomLevel by remember { mutableIntStateOf(-1) }
+    var previousZoomLevel by remember { mutableIntStateOf(-1) }
+    var coverageCompleteTime by remember { mutableLongStateOf(0L) }
     val zoomThreshold = 1.01f
     var currentTime by remember { mutableLongStateOf(currentTimeMillis()) }
     var isDismissing by remember { mutableStateOf(false) }
@@ -120,6 +123,8 @@ internal fun TesseraImageContent(
             loadError = null
             loadedTiles = emptyMap()
             currentZoomLevel = -1
+            previousZoomLevel = -1
+            coverageCompleteTime = 0L
             scale = minScale
             offset = Offset.Zero
             dismissOffsetY = 0f
@@ -151,9 +156,42 @@ internal fun TesseraImageContent(
         }
     }
 
+    // True once every visible current-level tile has loaded. Empty visible set
+    // (e.g. zoom 0 skip) counts as ready so background fades out promptly.
+    val coverageReady by remember(tesseraState) {
+        derivedStateOf {
+            val state = tesseraState ?: return@derivedStateOf false
+            if (currentZoomLevel < 0) return@derivedStateOf false
+            val visibleCurrent = state.getVisibleTiles()
+                .filter { it.zoomLevel == currentZoomLevel }
+            if (visibleCurrent.isEmpty()) return@derivedStateOf true
+            visibleCurrent.all { it.toKey() in loadedTiles.keys }
+        }
+    }
+
+    LaunchedEffect(coverageReady, currentZoomLevel) {
+        if (coverageReady && coverageCompleteTime == 0L) {
+            coverageCompleteTime = currentTimeMillis()
+        } else if (!coverageReady) {
+            // User panned to expose untiled regions mid-fade — restart the cycle
+            // so the background re-anchors when the new tiles arrive.
+            coverageCompleteTime = 0L
+        }
+    }
+
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = currentTimeMillis()
+            val animDur = tileAnimationDurationMs.coerceAtLeast(0).toLong()
+            // After the background crossfade completes, drop previous-level entries
+            // from the metadata map. Bitmaps stay in TesseraState's LRU cache and
+            // are reclaimed there when room is needed.
+            if (previousZoomLevel >= 0 && coverageReady && coverageCompleteTime > 0L &&
+                currentTime - coverageCompleteTime >= animDur
+            ) {
+                loadedTiles = loadedTiles.filterValues { it.zoomLevel != previousZoomLevel }
+                previousZoomLevel = -1
+            }
             delay(16)
         }
     }
@@ -177,7 +215,11 @@ internal fun TesseraImageContent(
 
                 val newZoomLevel = visibleTiles.firstOrNull()?.zoomLevel ?: -1
                 if (newZoomLevel != currentZoomLevel) {
+                    if (currentZoomLevel >= 0) {
+                        previousZoomLevel = currentZoomLevel
+                    }
                     currentZoomLevel = newZoomLevel
+                    coverageCompleteTime = 0L
                 }
 
                 if (newZoomLevel == 0 &&
@@ -704,39 +746,32 @@ internal fun TesseraImageContent(
 
                         val animDuration = tileAnimationDurationMs.coerceAtLeast(0).toLong()
 
-                        // Compute crossfade reference once (not per tile)
-                        val oldestCurrentTile = loadedTiles.values
-                            .filter { it.zoomLevel == currentZoomLevel }
-                            .minByOrNull { it.loadTime }
+                        // Background = the level the user just left. Held at full
+                        // opacity until every visible current-level tile is loaded
+                        // (coverageReady), then EaseOut fades over animDuration.
+                        val backgroundAlpha = decideBackgroundAlpha(
+                            coverageReady = coverageReady,
+                            coverageCompleteTime = coverageCompleteTime,
+                            currentTime = currentTime,
+                            animDuration = animDuration
+                        )
 
-                        // Previous zoom level tiles: crossfade out as current tiles load
-                        loadedTiles
-                            .filter { it.value.zoomLevel < currentZoomLevel }
-                            .forEach { (tileKey, _) ->
-                                state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
-                                    val tileRect = state.getTileRect(coordinate)
-                                    val fadeOutAlpha = if (oldestCurrentTile == null) {
-                                        // No current tiles yet: keep previous tiles visible
-                                        1f
-                                    } else if (animDuration > 0) {
-                                        val elapsed = currentTime - oldestCurrentTile.loadTime
-                                        val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
-                                        1f - easeOut(t)
-                                    } else {
-                                        // Animation disabled: hide previous tiles instantly
-                                        0f
-                                    }
-                                    if (fadeOutAlpha > 0.01f) {
+                        if (previousZoomLevel >= 0 && backgroundAlpha > 0.01f) {
+                            loadedTiles
+                                .filter { it.value.zoomLevel == previousZoomLevel }
+                                .forEach { (tileKey, _) ->
+                                    state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
+                                        val tileRect = state.getTileRect(coordinate)
                                         drawTileWithRect(
                                             bitmap = bitmap,
                                             tileRect = tileRect,
                                             totalScale = totalScale,
                                             baseOffset = baseOffset,
-                                            alpha = fadeOutAlpha
+                                            alpha = backgroundAlpha
                                         )
                                     }
                                 }
-                            }
+                        }
 
                         // Current zoom level tiles: fade in with EaseOut
                         loadedTiles
@@ -1021,6 +1056,31 @@ private fun DrawScope.drawMinimap(
 
 /** EaseOut interpolation: fast start, slow finish. t in [0, 1]. */
 internal fun easeOut(t: Float): Float = 1f - (1f - t) * (1f - t)
+
+/**
+ * Background-tile (previous zoom level) opacity during a zoom transition.
+ *
+ * The rule: hold full opacity until every visible current-level tile has loaded
+ * (`coverageReady`), then EaseOut crossfade over `animDuration`. This keeps the
+ * image visually sharp throughout the transition — the user never sees a region
+ * fall back to the blurry preview while waiting for current-level tiles.
+ *
+ * `coverageCompleteTime == 0L` means the moment of coverage hasn't been captured
+ * yet (caller hasn't recorded it), so we conservatively hold opacity.
+ */
+internal fun decideBackgroundAlpha(
+    coverageReady: Boolean,
+    coverageCompleteTime: Long,
+    currentTime: Long,
+    animDuration: Long
+): Float {
+    if (!coverageReady) return 1f
+    if (coverageCompleteTime <= 0L) return 1f
+    if (animDuration <= 0L) return 0f
+    val elapsed = currentTime - coverageCompleteTime
+    val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
+    return 1f - easeOut(t)
+}
 
 internal fun syncViewerState(
     vs: TesseraViewerState,
