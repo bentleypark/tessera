@@ -60,6 +60,7 @@ class TesseraGestureTest {
         enablePagerIntegration: Boolean = false,
         showScrollIndicators: Boolean = false,
         rotation: ImageRotation = ImageRotation.None,
+        tileAnimationDurationMs: Int = 200,
         imageWidth: Int = 2000,
         imageHeight: Int = 1500,
         viewerState: TesseraViewerState? = null,
@@ -77,6 +78,7 @@ class TesseraGestureTest {
                 enablePagerIntegration = enablePagerIntegration,
                 showScrollIndicators = showScrollIndicators,
                 rotation = rotation,
+                tileAnimationDurationMs = tileAnimationDurationMs,
                 viewerState = viewerState,
                 onDismiss = onDismiss
             )
@@ -404,5 +406,57 @@ class TesseraGestureTest {
 
         // Scale should have changed to 3.0 (double-tap zoom target)
         assertTrue(state.scale > 1.0f, "Scale should increase after double-tap zoom")
+    }
+
+    // --- Tile animation tests ---
+
+    @Test
+    fun tileAnimation_defaultDuration_noCrash() {
+        setUpContent(tileAnimationDurationMs = 200)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_disabled_noCrash() {
+        setUpContent(tileAnimationDurationMs = 0)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_longDuration_noCrash() {
+        setUpContent(tileAnimationDurationMs = 1000)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_negativeDuration_treatedAsZero() {
+        // Negative values are clamped to 0 (animation disabled)
+        setUpContent(tileAnimationDurationMs = -1)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_zoomLevelTransition_noCrash() {
+        val state = TesseraViewerState()
+        setUpContent(tileAnimationDurationMs = 200, viewerState = state)
+        composeTestRule.waitForIdle()
+
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        // Zoom in (triggers zoom level change → crossfade)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+        // Zoom out (triggers reverse transition)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+
+        assertTrue(state.isReady, "State should remain ready through zoom transitions")
     }
 }

@@ -75,6 +75,7 @@ internal fun TesseraImageContent(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
     viewerState: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
@@ -710,30 +711,52 @@ internal fun TesseraImageContent(
                             )
                         }
 
+                        val animDuration = tileAnimationDurationMs.coerceAtLeast(0).toLong()
+
+                        // Compute crossfade reference once (not per tile)
+                        val oldestCurrentTile = loadedTiles.values
+                            .filter { it.zoomLevel == currentZoomLevel }
+                            .minByOrNull { it.loadTime }
+
+                        // Previous zoom level tiles: crossfade out as current tiles load
                         loadedTiles
                             .filter { it.value.zoomLevel < currentZoomLevel }
                             .forEach { (tileKey, _) ->
                                 state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
                                     val tileRect = state.getTileRect(coordinate)
-                                    drawTileWithRect(
-                                        bitmap = bitmap,
-                                        tileRect = tileRect,
-                                        totalScale = totalScale,
-                                        baseOffset = baseOffset,
-                                        alpha = 1f
-                                    )
+                                    val fadeOutAlpha = if (oldestCurrentTile == null) {
+                                        // No current tiles yet: keep previous tiles visible
+                                        1f
+                                    } else if (animDuration > 0) {
+                                        val elapsed = currentTime - oldestCurrentTile.loadTime
+                                        val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
+                                        1f - easeOut(t)
+                                    } else {
+                                        // Animation disabled: hide previous tiles instantly
+                                        0f
+                                    }
+                                    if (fadeOutAlpha > 0.01f) {
+                                        drawTileWithRect(
+                                            bitmap = bitmap,
+                                            tileRect = tileRect,
+                                            totalScale = totalScale,
+                                            baseOffset = baseOffset,
+                                            alpha = fadeOutAlpha
+                                        )
+                                    }
                                 }
                             }
 
+                        // Current zoom level tiles: fade in with EaseOut
                         loadedTiles
                             .filter { it.value.zoomLevel == currentZoomLevel }
                             .forEach { (tileKey, info) ->
                                 state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
                                     val tileRect = state.getTileRect(coordinate)
-                                    val fadeInDuration = 100L
                                     val elapsedTime = currentTime - info.loadTime
-                                    val alpha = if (elapsedTime < fadeInDuration) {
-                                        (elapsedTime.toFloat() / fadeInDuration).coerceIn(0f, 1f)
+                                    val alpha = if (animDuration > 0 && elapsedTime < animDuration) {
+                                        val t = (elapsedTime.toFloat() / animDuration).coerceIn(0f, 1f)
+                                        easeOut(t)
                                     } else {
                                         1f
                                     }
@@ -985,6 +1008,9 @@ private fun DrawScope.drawMinimap(
         style = Stroke(width = borderWidth)
     )
 }
+
+/** EaseOut interpolation: fast start, slow finish. t in [0, 1]. */
+internal fun easeOut(t: Float): Float = 1f - (1f - t) * (1f - t)
 
 internal fun syncViewerState(
     vs: TesseraViewerState,

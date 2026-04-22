@@ -314,6 +314,7 @@ Three distinct decoding tiers exist across platforms:
 | `enablePagerIntegration` | Boolean | `false` | Pass horizontal swipes to parent Pager |
 | `showScrollIndicators` | Boolean | `false` | Show scroll position indicators when zoomed |
 | `rotation` | ImageRotation | `ImageRotation.None` | User-controlled rotation (None, Rotate90, Rotate180, Rotate270) |
+| `tileAnimationDurationMs` | Int | `200` | Tile fade-in/crossfade duration in ms (0 disables animation) |
 | `state` | TesseraViewerState? | `null` | Observable viewer state (see below) |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
 

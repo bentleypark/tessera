@@ -31,6 +31,7 @@ fun TesseraImage(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
     state: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
@@ -51,6 +52,7 @@ fun TesseraImage(
         enablePagerIntegration = enablePagerIntegration,
         showScrollIndicators = showScrollIndicators,
         rotation = rotation,
+        tileAnimationDurationMs = tileAnimationDurationMs,
         viewerState = state,
         onDismiss = onDismiss
     )
