@@ -144,9 +144,9 @@ class TileManagerTest {
             viewWidth = 256f,
             viewHeight = 256f
         )
-        val tiles = manager.getVisibleTiles(viewport)
+        val tiles = manager.getVisibleTiles(viewport, prefetchMargin = 0)
         assertTrue(tiles.isNotEmpty())
-        // All tiles should be in the offset region
+        // All tiles should be in the offset region (no prefetch margin)
         tiles.forEach { tile ->
             assertTrue(tile.col >= 2, "col ${tile.col} should be >= 2")
             assertTrue(tile.row >= 2, "row ${tile.row} should be >= 2")
@@ -253,6 +253,117 @@ class TileManagerTest {
         val grid = largeManager.createTileGrid(1)
         // columns = ceil(1920/512) = 4, rows = ceil(1080/512) = 3
         assertEquals(4, grid.columns)
+        assertEquals(3, grid.rows)
+    }
+
+    // --- Large image tile count reduction with bigger tile size ---
+
+    @Test
+    fun largerTileSize_reducesTileCount_108MP() {
+        val largeImage = ImageInfo(width = 12000, height = 7149)
+        val small = TileManager(largeImage, tileSize = 256)
+        val large = TileManager(largeImage, tileSize = 512)
+
+        val gridSmall = small.createTileGrid(0) // sampleSize=2 → 6000x3575
+        val gridLarge = large.createTileGrid(0) // sampleSize=2 → 6000x3575
+
+        // 256px: ceil(6000/256)=24, ceil(3575/256)=14 → 336
+        assertEquals(24, gridSmall.columns)
+        assertEquals(14, gridSmall.rows)
+        assertEquals(336, gridSmall.totalTiles)
+
+        // 512px: ceil(6000/512)=12, ceil(3575/512)=7 → 84
+        assertEquals(12, gridLarge.columns)
+        assertEquals(7, gridLarge.rows)
+        assertEquals(84, gridLarge.totalTiles)
+
+        // 75% reduction
+        assertTrue(gridLarge.totalTiles < gridSmall.totalTiles / 3)
+    }
+
+    @Test
+    fun largerTileSize_fewerVisibleTiles() {
+        val largeImage = ImageInfo(width = 4000, height = 3000)
+        val small = TileManager(largeImage, tileSize = 256)
+        val large = TileManager(largeImage, tileSize = 512)
+
+        // Zoomed-in viewport covering ~1000x1000 image pixels
+        val viewport = Viewport(
+            offsetX = 1000f,
+            offsetY = 1000f,
+            scale = 2.0f,
+            viewWidth = 1000f,
+            viewHeight = 1000f
+        )
+
+        val tilesSmall = small.getVisibleTiles(viewport)
+        val tilesLarge = large.getVisibleTiles(viewport)
+
+        assertTrue(tilesLarge.size < tilesSmall.size,
+            "512px tiles (${tilesLarge.size}) should be fewer than 256px tiles (${tilesSmall.size})")
+    }
+
+    // --- Prefetch margin ---
+
+    @Test
+    fun prefetchMargin_expandsVisibleTiles() {
+        val viewport = Viewport(
+            offsetX = 512f,
+            offsetY = 512f,
+            scale = 2.0f,
+            viewWidth = 500f,
+            viewHeight = 500f
+        )
+        val withoutMargin = manager.getVisibleTiles(viewport, prefetchMargin = 0)
+        val withMargin = manager.getVisibleTiles(viewport, prefetchMargin = 128)
+
+        assertTrue(withMargin.size > withoutMargin.size,
+            "Prefetch margin should include more tiles: ${withMargin.size} > ${withoutMargin.size}")
+        // All non-margin tiles should be included in margin result
+        withoutMargin.forEach { tile ->
+            assertTrue(tile in withMargin, "Visible tile $tile should be in prefetched set")
+        }
+    }
+
+    @Test
+    fun prefetchMargin_zero_matchesExactViewport() {
+        val viewport = Viewport(
+            offsetX = 256f,
+            offsetY = 256f,
+            scale = 2.0f,
+            viewWidth = 256f,
+            viewHeight = 256f
+        )
+        val noMargin = manager.getVisibleTiles(viewport, prefetchMargin = 0)
+        val defaultMargin = manager.getVisibleTiles(viewport)
+
+        assertTrue(defaultMargin.size >= noMargin.size,
+            "Default margin should include at least as many tiles")
+    }
+
+    @Test
+    fun prefetchMargin_clampedToImageBounds() {
+        // Viewport at top-left corner — margin can't go below 0
+        val viewport = Viewport(
+            offsetX = 0f,
+            offsetY = 0f,
+            scale = 2.0f,
+            viewWidth = 300f,
+            viewHeight = 300f
+        )
+        val tiles = manager.getVisibleTiles(viewport, prefetchMargin = 500)
+        tiles.forEach { tile ->
+            assertTrue(tile.col >= 0, "col should be >= 0")
+            assertTrue(tile.row >= 0, "row should be >= 0")
+        }
+    }
+
+    @Test
+    fun tileSize_384_intermediateValue() {
+        val mgr = TileManager(imageInfo, tileSize = 384)
+        val grid = mgr.createTileGrid(1)
+        // columns = ceil(1920/384) = 5, rows = ceil(1080/384) = 3
+        assertEquals(5, grid.columns)
         assertEquals(3, grid.rows)
     }
 }

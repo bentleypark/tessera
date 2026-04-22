@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
  * @param enableDismissGesture Enable vertical drag-to-dismiss gesture
  * @param enablePagerIntegration Enable horizontal swipe pass-through to parent pager
  * @param showScrollIndicators Show scroll position indicators when zoomed
+ * @param state Observable viewer state created via [rememberTesseraState]
  * @param onDismiss Callback invoked when dismiss gesture is completed
  */
 @Composable
@@ -32,6 +33,8 @@ fun TesseraImage(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
+    state: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: WasmImageLoader() }
@@ -51,6 +54,8 @@ fun TesseraImage(
         enablePagerIntegration = enablePagerIntegration,
         showScrollIndicators = showScrollIndicators,
         rotation = rotation,
+        tileAnimationDurationMs = tileAnimationDurationMs,
+        viewerState = state,
         onDismiss = onDismiss
     )
 }

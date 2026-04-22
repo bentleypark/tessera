@@ -10,18 +10,32 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /**
  * Wrapper for Android's BitmapRegionDecoder to handle tile-based image decoding.
+ * Uses a pool of decoder instances for parallel tile decoding when a file path
+ * is available (FileSource directly, ResourceSource via fallback file).
  * Automatically handles EXIF orientation for correct display.
+ *
+ * Pool size is limited to 2 by default. Each BitmapRegionDecoder instance
+ * retains a reference to the full encoded image data (memory-mapped for files,
+ * heap-buffered for streams). Multiple instances increase native memory pressure,
+ * especially for large images (e.g., a 10MB JPEG may add up to ~10MB per instance).
+ * Pool sizes above 2-3 risk OOM or ANR on low-RAM devices.
  */
 class ImageDecoder(
     private val imageSource: ImageSource,
-    private val tempFileProvider: (String, InputStream) -> File
+    private val tempFileProvider: (String, InputStream) -> File,
+    private val maxDecoderInstances: Int = 2
 ) : RegionDecoder {
-    private var decoder: BitmapRegionDecoder? = null
     private var _imageInfo: ImageInfo? = null
     private var fallbackFile: File? = null
+
+    // Decoder pool for parallel decoding
+    private var decoderPool: ArrayBlockingQueue<BitmapRegionDecoder>? = null
+    private val allDecoders = mutableListOf<BitmapRegionDecoder>()
 
     // EXIF orientation: raw pixel dimensions (before rotation)
     private var rawWidth: Int = 0
@@ -31,7 +45,12 @@ class ImageDecoder(
 
     @Volatile
     private var isDecoderInitialized = false
+    @Volatile
+    private var isClosed = false
     private val decoderLock = Any()
+
+    // File path for creating additional decoder instances
+    private var decoderFilePath: String? = null
 
     override val imageInfo: ImageInfo
         get() = _imageInfo ?: throw IllegalStateException("Decoder not initialized")
@@ -96,19 +115,80 @@ class ImageDecoder(
         synchronized(decoderLock) {
             if (isDecoderInitialized) return
 
-            decoder = createRegionDecoder()
+            // Resolve file path for pool creation
+            val filePath = resolveFilePath()
+            decoderFilePath = filePath
+
+            val poolSize = if (filePath != null) maxDecoderInstances else 1
+            val pool = ArrayBlockingQueue<BitmapRegionDecoder>(poolSize)
+
+            // Create first decoder
+            val firstDecoder = createRegionDecoder()
+            if (firstDecoder != null) {
+                pool.add(firstDecoder)
+                allDecoders.add(firstDecoder)
+            }
+
+            // Create additional decoders from file path (only for FileSource)
+            if (filePath != null && firstDecoder != null) {
+                for (i in 1 until poolSize) {
+                    try {
+                        val extra = createRegionDecoderFromFile(File(filePath))
+                        if (extra != null) {
+                            pool.add(extra)
+                            allDecoders.add(extra)
+                        }
+                    } catch (e: Exception) {
+                        logWarning("ImageDecoder", "Failed to create pool decoder #$i", e)
+                        break
+                    }
+                }
+            }
+
+            decoderPool = pool
             isDecoderInitialized = true
+
+            if (allDecoders.size > 1) {
+                logWarning("TesseraPerf", "decoder pool: ${allDecoders.size} instances")
+            }
         }
+    }
+
+    private fun resolveFilePath(): String? {
+        return when (val source = imageSource) {
+            is ImageSource.FileSource -> source.file.absolutePath
+            is ImageSource.ResourceSource -> {
+                getOrCreateFallbackFile(source.description, source.openStream)?.absolutePath
+            }
+        }
+    }
+
+    private fun acquireDecoder(): BitmapRegionDecoder? {
+        if (isClosed) return null
+        return decoderPool?.poll(5, TimeUnit.SECONDS)
+    }
+
+    private fun releaseDecoder(decoder: BitmapRegionDecoder) {
+        if (isClosed) {
+            decoder.recycle()
+            return
+        }
+        decoderPool?.put(decoder)
     }
 
     override fun decodeTile(rect: TileRect, sampleSize: Int): ImageBitmap? {
         ensureDecoderInitialized()
-        val currentDecoder = decoder ?: return null
+        val currentDecoder = acquireDecoder() ?: return null
 
         return try {
+            val format = ImageFormat.fromMimeType(imageInfo.mimeType)
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inPreferredConfig = if (format == ImageFormat.JPEG) {
+                    Bitmap.Config.RGB_565
+                } else {
+                    Bitmap.Config.ARGB_8888
+                }
             }
 
             // Remap display coordinates to raw pixel coordinates
@@ -116,7 +196,7 @@ class ImageDecoder(
             val androidRect = Rect(rawRect.left, rawRect.top, rawRect.right, rawRect.bottom)
             val decoded = currentDecoder.decodeRegion(androidRect, options) ?: return null
 
-            // Apply rotation
+            // Apply rotation (thread-safe, operates on independent bitmap)
             val rotated = applyRotation(decoded)
             if (rotated !== decoded) decoded.recycle()
             rotated.asImageBitmap()
@@ -125,6 +205,8 @@ class ImageDecoder(
         } catch (e: Exception) {
             logError("ImageDecoder", "decodeTile failed: rect=$rect sampleSize=$sampleSize", e)
             null
+        } finally {
+            releaseDecoder(currentDecoder)
         }
     }
 
@@ -168,11 +250,20 @@ class ImageDecoder(
     }
 
     override fun close() {
-        decoder?.recycle()
-        decoder = null
-        isDecoderInitialized = false
-        fallbackFile?.delete()
-        fallbackFile = null
+        synchronized(decoderLock) {
+            isClosed = true
+            // Only recycle decoders currently in the pool.
+            // In-flight decoders will be recycled when returned via releaseDecoder().
+            val remaining = mutableListOf<BitmapRegionDecoder>()
+            decoderPool?.drainTo(remaining)
+            remaining.forEach { it.recycle() }
+            allDecoders.clear()
+            decoderPool = null
+            isDecoderInitialized = false
+            fallbackFile?.delete()
+            fallbackFile = null
+            decoderFilePath = null
+        }
     }
 
     private fun remapRect(rect: TileRect): TileRect {

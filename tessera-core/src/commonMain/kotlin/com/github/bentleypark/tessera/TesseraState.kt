@@ -2,6 +2,7 @@ package com.github.bentleypark.tessera
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,7 +17,8 @@ import kotlin.coroutines.cancellation.CancellationException
 class TesseraState(
     private val imageSource: ImageSource,
     private val decoderFactory: (ImageSource) -> RegionDecoder,
-    private val maxCacheSize: Int = 150
+    private val tileSize: Int = 256,
+    private val maxCacheSize: Int = (150 * 256 * 256 / (tileSize * tileSize)).coerceAtLeast(50)
 ) {
     @Volatile
     private var decoder: RegionDecoder? = null
@@ -36,6 +38,11 @@ class TesseraState(
     var viewport by mutableStateOf(Viewport())
         private set
     var previewBitmap by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    /** Number of tiles currently held in the LRU cache. Tracked separately to avoid
+     *  subscribing composition to the entire SnapshotStateMap. */
+    var cachedTileCount by mutableIntStateOf(0)
         private set
 
     /** Synchronous init for testing and simple usage. Must be called on the main thread. */
@@ -58,7 +65,7 @@ class TesseraState(
             val decoderTime = currentTimeMillis() - initStart
 
             decoder = regionDecoder
-            tileManager = TileManager(info)
+            tileManager = TileManager(info, tileSize)
 
             // Warn about large non-JPEG images (subsample APIs don't save memory for PNG, etc.)
             val format = ImageFormat.fromMimeType(info.mimeType)
@@ -185,6 +192,7 @@ class TesseraState(
         evictLRUIfNeeded()
         tileCache[key] = bitmap to coordinate
         updateAccessOrder(key)
+        cachedTileCount = tileCache.size
     }
 
     private fun evictLRUIfNeeded() {
@@ -204,5 +212,6 @@ class TesseraState(
         decoder = null
         tileCache.clear()
         tileCacheAccessOrder.clear()
+        cachedTileCount = 0
     }
 }

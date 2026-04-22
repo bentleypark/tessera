@@ -18,6 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
  * @param imageLoader Image loading strategy (default: RoutingImageLoader)
  * @param contentDescription Accessibility description
  * @param enableDismissGesture Enable vertical drag-to-dismiss gesture
+ * @param state Observable viewer state created via [rememberTesseraState]
  * @param onDismiss Callback invoked when dismiss gesture is completed
  */
 @Composable
@@ -33,6 +34,8 @@ fun TesseraImage(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
+    state: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -53,6 +56,8 @@ fun TesseraImage(
         enablePagerIntegration = enablePagerIntegration,
         showScrollIndicators = showScrollIndicators,
         rotation = rotation,
+        tileAnimationDurationMs = tileAnimationDurationMs,
+        viewerState = state,
         onDismiss = onDismiss
     )
 }
@@ -61,6 +66,7 @@ fun TesseraImage(
  * Tessera - Compose-native tile-based image viewer for Android resource images
  *
  * @param imageResId Android drawable resource ID (e.g., R.drawable.my_image)
+ * @param state Observable viewer state created via [rememberTesseraState]
  */
 @Composable
 fun TesseraImage(
@@ -75,6 +81,8 @@ fun TesseraImage(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
+    state: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -96,6 +104,8 @@ fun TesseraImage(
         enablePagerIntegration = enablePagerIntegration,
         showScrollIndicators = showScrollIndicators,
         rotation = rotation,
+        tileAnimationDurationMs = tileAnimationDurationMs,
+        viewerState = state,
         onDismiss = onDismiss
     )
 }

@@ -41,6 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.github.bentleypark.tessera.ContentScale
 import com.github.bentleypark.tessera.ImageRotation
 import com.github.bentleypark.tessera.TesseraImage
+import com.github.bentleypark.tessera.TesseraViewerState
+import com.github.bentleypark.tessera.rememberTesseraState
 import com.github.bentleypark.tessera.coil.CoilImageLoader
 
 private data class TestImage(
@@ -131,6 +133,8 @@ private fun PagerGallery(
     val pagerState = rememberPagerState(initialPage = initialPage) { images.size }
     var currentRotation by remember { mutableStateOf(ImageRotation.None) }
 
+    val viewerState = rememberTesseraState()
+
     Box(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(
             state = pagerState,
@@ -146,10 +150,20 @@ private fun PagerGallery(
                 enablePagerIntegration = isFitMode,
                 showScrollIndicators = true,
                 rotation = currentRotation,
+                state = if (page == pagerState.currentPage) viewerState else null,
                 onDismiss = onBack,
                 contentDescription = images[page].description
             )
         }
+
+        // State info overlay
+        StateInfoOverlay(
+            viewerState = viewerState,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 8.dp, bottom = 16.dp)
+                .zIndex(2f)
+        )
 
         // Page indicator
         Text(
@@ -266,5 +280,52 @@ private fun ImageSelectionScreen(scrollState: ScrollState, onSelect: (Int) -> Un
             color = Color.Gray,
             fontSize = 12.sp
         )
+    }
+}
+
+@Composable
+private fun StateInfoOverlay(
+    viewerState: TesseraViewerState,
+    modifier: Modifier = Modifier
+) {
+    val info = viewerState.imageInfo
+    val statusText = when {
+        viewerState.isLoading -> "Loading..."
+        viewerState.error != null -> "Error"
+        viewerState.isReady -> "Ready"
+        else -> "-"
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Column {
+            Text(
+                text = statusText,
+                color = if (viewerState.isReady) Color.Green else Color.Yellow,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            if (info != null) {
+                Text(
+                    text = "${info.width}x${info.height}",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 10.sp
+                )
+            }
+            Text(
+                text = "Zoom: ${((viewerState.scale * 10).toInt() / 10f)}x  Level: ${viewerState.zoomLevel}",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 10.sp
+            )
+            Text(
+                text = "Tiles: ${viewerState.cachedTileCount}",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 10.sp
+            )
+        }
     }
 }

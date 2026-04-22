@@ -45,14 +45,16 @@ class TileManager(
         )
     }
 
-    fun getVisibleTiles(viewport: Viewport): List<TileCoordinate> {
+    fun getVisibleTiles(viewport: Viewport, prefetchMargin: Int = tileSize / 2): List<TileCoordinate> {
         val zoomLevel = calculateZoomLevel(viewport.scale)
         val grid = createTileGrid(zoomLevel)
 
-        val viewportLeft = max(0f, viewport.offsetX)
-        val viewportTop = max(0f, viewport.offsetY)
-        val viewportRight = min(imageInfo.width.toFloat(), viewport.offsetX + viewport.viewWidth)
-        val viewportBottom = min(imageInfo.height.toFloat(), viewport.offsetY + viewport.viewHeight)
+        // Expand viewport by prefetch margin to pre-decode tiles about to scroll into view
+        val margin = prefetchMargin.toFloat()
+        val viewportLeft = max(0f, viewport.offsetX - margin)
+        val viewportTop = max(0f, viewport.offsetY - margin)
+        val viewportRight = min(imageInfo.width.toFloat(), viewport.offsetX + viewport.viewWidth + margin)
+        val viewportBottom = min(imageInfo.height.toFloat(), viewport.offsetY + viewport.viewHeight + margin)
 
         val startCol = max(0, floor(viewportLeft / tileSize).toInt())
         val startRow = max(0, floor(viewportTop / tileSize).toInt())

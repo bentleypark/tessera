@@ -432,4 +432,74 @@ class TesseraStateTest {
         assertTrue(rect.right > 0)
         assertTrue(rect.bottom > 0)
     }
+
+    // --- Dynamic tile size & maxCacheSize ---
+
+    @Test
+    fun tileSize_256_defaultMaxCacheSize150() {
+        val state = TesseraState(dummySource, { FakeRegionDecoder() }, tileSize = 256)
+        state.initialize()
+
+        // Load up to 150 tiles — should all fit
+        (0 until 150).forEach { i ->
+            val coord = TileCoordinate(i % 20, i / 20, 0)
+            state.loadTile(coord)
+        }
+        assertEquals(150, state.cachedTileCount)
+    }
+
+    @Test
+    fun tileSize_512_reducedMaxCacheSize() {
+        // maxCacheSize = (150 * 256*256 / 512*512).coerceAtLeast(50) = 37 → capped at 50
+        val state = TesseraState(dummySource, { FakeRegionDecoder() }, tileSize = 512)
+        state.initialize()
+
+        // Load 60 tiles — should be capped at maxCacheSize (~50)
+        (0 until 60).forEach { i ->
+            val coord = TileCoordinate(i % 20, i / 20, 0)
+            state.loadTile(coord)
+        }
+        assertTrue(state.cachedTileCount <= 50,
+            "Cache should be capped: ${state.cachedTileCount} <= 50")
+    }
+
+    // --- cachedTileCount tracking ---
+
+    @Test
+    fun cachedTileCount_tracksCorrectly() {
+        val (state, _) = createInitializedState()
+
+        assertEquals(0, state.cachedTileCount)
+
+        state.loadTile(TileCoordinate(0, 0, 0))
+        assertEquals(1, state.cachedTileCount)
+
+        state.loadTile(TileCoordinate(1, 0, 0))
+        assertEquals(2, state.cachedTileCount)
+    }
+
+    @Test
+    fun cachedTileCount_decreasesOnEviction() {
+        val (state, _) = createInitializedState(maxCacheSize = 2)
+
+        state.loadTile(TileCoordinate(0, 0, 0))
+        state.loadTile(TileCoordinate(1, 0, 0))
+        assertEquals(2, state.cachedTileCount)
+
+        // Third tile causes eviction
+        state.loadTile(TileCoordinate(2, 0, 0))
+        assertEquals(2, state.cachedTileCount)
+    }
+
+    @Test
+    fun cachedTileCount_resetsOnDispose() {
+        val (state, _) = createInitializedState()
+
+        state.loadTile(TileCoordinate(0, 0, 0))
+        state.loadTile(TileCoordinate(1, 0, 0))
+        assertEquals(2, state.cachedTileCount)
+
+        state.dispose()
+        assertEquals(0, state.cachedTileCount)
+    }
 }

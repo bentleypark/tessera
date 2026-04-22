@@ -109,6 +109,14 @@ Platform-specific implementations are separated via `expect`/`actual`:
   - Desktop: `DesktopRegionDecoder` (ImageIO, subsample cache)
   - Web: `WasmRegionDecoder` (Skia, full image decode)
 
+### Public State API
+- `TesseraViewerState` — public read-only state holder (`@Stable`, `internal set`)
+- `rememberTesseraState()` — Composable factory (follows `rememberLazyListState()` convention)
+- `TesseraViewerState.sync()` — internal bulk update (called from SideEffect on main thread)
+- `syncViewerState()` — extracted testable function for state synchronization
+- State sync runs in `SideEffect { }` block (not during composition)
+- Optional `state` parameter on all platform `TesseraImage` wrappers
+
 ### No Platform Types in commonMain
 - `android.graphics.Rect` → `TileRect`
 - `android.graphics.Bitmap` → `ImageBitmap`
@@ -130,17 +138,26 @@ Companion modules (optional):
 tessera-core has zero external image library dependencies.
 
 ### Tile Cache
-- LRU-based (`maxCacheSize` default: 150)
+- LRU-based, `maxCacheSize` auto-scales inversely with tile size: `(150 * 256² / tileSize²).coerceAtLeast(50)`
+- Tile size is dynamic: `(256 * displayDensity).coerceIn(256, 512)` via `LocalDensity`
 - `loadTile()` calls `updateAccessOrder()` to maintain LRU order
 - `evictLRUIfNeeded()` removes the oldest tile when cache is full
+- Android JPEG tiles use `RGB_565` (2 bytes/pixel); PNG/alpha formats use `ARGB_8888`
+- `cachedTileCount` tracked via separate `mutableIntStateOf` (avoids SnapshotStateMap over-subscription)
+
+### Android Decoder Pool
+- `BitmapRegionDecoder` pool (default 2 instances) for parallel tile decoding
+- Each instance retains full encoded image data — pool sizes above 2-3 risk OOM on low-RAM devices
+- `ArrayBlockingQueue` with `poll(5s)` timeout prevents deadlock on `close()`
+- `isClosed` flag ensures in-flight decoders are recycled on return
 
 ### Zoom Levels
-| Level | Scale | Sample Size |
-|-------|-------|-------------|
-| 0 | 1.0x–1.5x | 2 (half resolution) |
-| 1 | 1.5x–3.0x | 1 (full) |
-| 2 | 3.0x–6.0x | 1 |
-| 3 | 6.0x+ | 1 |
+| Level | Scale | Sample Size | Note |
+|-------|-------|-------------|------|
+| 0 | 1.0x–1.5x | 2 (half resolution) | Tiles skipped when viewport covers full image (preview sufficient) |
+| 1 | 1.5x–3.0x | 1 (full) | First level where tiles actually load |
+| 2 | 3.0x–6.0x | 1 | |
+| 3 | 6.0x+ | 1 | |
 
 ## Code Style
 - Follow Kotlin official coding conventions

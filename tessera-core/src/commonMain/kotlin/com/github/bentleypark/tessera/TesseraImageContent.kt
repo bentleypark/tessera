@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,6 +36,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.semantics.contentDescription
@@ -42,8 +44,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlin.coroutines.cancellation.CancellationException
@@ -70,8 +75,12 @@ internal fun TesseraImageContent(
     enablePagerIntegration: Boolean = false,
     showScrollIndicators: Boolean = false,
     rotation: ImageRotation = ImageRotation.None,
+    tileAnimationDurationMs: Int = 200,
+    viewerState: TesseraViewerState? = null,
     onDismiss: () -> Unit = {}
 ) {
+    val density = LocalDensity.current.density
+    val tileSize = remember(density) { (256 * density).roundToInt().coerceIn(256, 512) }
     var tesseraState by remember { mutableStateOf<TesseraState?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var scale by remember { mutableFloatStateOf(1f) }
@@ -81,6 +90,7 @@ internal fun TesseraImageContent(
     val zoomThreshold = 1.01f
     var currentTime by remember { mutableLongStateOf(currentTimeMillis()) }
     var isDismissing by remember { mutableStateOf(false) }
+    var isGesturing by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(0L) }
 
     var dismissOffsetY by remember { mutableFloatStateOf(0f) }
@@ -103,7 +113,7 @@ internal fun TesseraImageContent(
         }
     }
 
-    LaunchedEffect(imageUrl, imageLoader) {
+    LaunchedEffect(imageUrl, imageLoader, tileSize) {
         try {
             val previousState = tesseraState
             tesseraState = null
@@ -121,7 +131,7 @@ internal fun TesseraImageContent(
             }
             val source = result.getOrNull()
             if (source != null) {
-                val state = TesseraState(source, decoderFactory)
+                val state = TesseraState(source, decoderFactory, tileSize = tileSize)
                 val initResult = withContext(imageLoadDispatcher) {
                     state.initializeDecoder()
                 }
@@ -151,10 +161,14 @@ internal fun TesseraImageContent(
     LaunchedEffect(tesseraState) {
         val state = tesseraState ?: return@LaunchedEffect
 
-        snapshotFlow { state.viewport }
-            .collect {
+        // Observe both viewport and gesture state. When isGesturing changes
+        // from true to false, snapshotFlow re-emits triggering tile load
+        // for the final viewport position.
+        snapshotFlow { state.viewport to isGesturing }
+            .collect { (_, gesturing) ->
                 if (isDismissing) return@collect
                 if (state.isLoading || state.error != null) return@collect
+                if (gesturing) return@collect
 
                 delay(20)
 
@@ -164,6 +178,12 @@ internal fun TesseraImageContent(
                 val newZoomLevel = visibleTiles.firstOrNull()?.zoomLevel ?: -1
                 if (newZoomLevel != currentZoomLevel) {
                     currentZoomLevel = newZoomLevel
+                }
+
+                if (newZoomLevel == 0 &&
+                    shouldSkipZeroLevelTiles(state.viewport, state.imageInfo)
+                ) {
+                    return@collect
                 }
 
                 val tilesToLoad = visibleTiles.filter { it.toKey() !in loadedTiles.keys }
@@ -190,26 +210,38 @@ internal fun TesseraImageContent(
                 var loadedCount = 0
                 var failCount = 0
 
-                sortedTiles.forEach { coordinate ->
+                // Decode tiles in parallel chunks matching decoder pool size.
+                // Each chunk is decoded concurrently, then cached immediately
+                // so tiles appear progressively instead of all at once.
+                val chunkSize = 2
+                sortedTiles.chunked(chunkSize).forEach { chunk ->
                     ensureActive()
+                    if (isGesturing) return@collect
 
-                    val key = coordinate.toKey()
-                    try {
-                        val bitmap = withContext(ioDispatcher) {
-                            state.decodeTile(coordinate)
-                        }
+                    val results = supervisorScope {
+                        chunk.map { coordinate ->
+                            async(ioDispatcher) {
+                                try {
+                                    coordinate to state.decodeTile(coordinate)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    logError("TesseraImage", "tile decode failed: ${coordinate.toKey()}", e)
+                                    coordinate to null
+                                }
+                            }
+                        }.awaitAll()
+                    }
 
+                    for ((coordinate, bitmap) in results) {
                         if (bitmap != null) {
                             state.cacheTile(coordinate, bitmap)
                             val loadTime = currentTimeMillis()
-                            loadedTiles = loadedTiles + (key to TileLoadInfo(loadTime, coordinate.zoomLevel))
+                            loadedTiles = loadedTiles + (coordinate.toKey() to TileLoadInfo(loadTime, coordinate.zoomLevel))
                             loadedCount++
+                        } else {
+                            failCount++
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logError("TesseraImage", "tile decode failed: $key", e)
-                        failCount++
                     }
                     yield()
                 }
@@ -230,6 +262,27 @@ internal fun TesseraImageContent(
     DisposableEffect(Unit) {
         onDispose {
             tesseraState?.dispose()
+        }
+    }
+
+    // Sync internal state to public TesseraViewerState after each successful composition.
+    // State reads must happen during composition (not inside SideEffect lambda)
+    // so that Compose subscribes to changes and triggers recomposition.
+    if (viewerState != null) {
+        val syncScale = scale
+        val syncZoomLevel = currentZoomLevel
+        val syncTileCount = tesseraState?.cachedTileCount ?: 0
+        val syncTesseraState = tesseraState
+        val syncLoadError = loadError
+        SideEffect {
+            syncViewerState(
+                vs = viewerState,
+                scale = syncScale,
+                zoomLevel = syncZoomLevel,
+                tileCount = syncTileCount,
+                tesseraState = syncTesseraState,
+                loadError = syncLoadError
+            )
         }
     }
 
@@ -284,6 +337,9 @@ internal fun TesseraImageContent(
                             rotationZ = rotation.degrees.toFloat()
                             clip = true
                         }
+                        // Desktop scroll handler: isGesturing not set here because scroll
+                        // events are discrete (not continuous like touch), so each event
+                        // naturally debounces via the 20ms delay in tile loading.
                         .pointerInput(contentScale, rotation) {
                             awaitPointerEventScope {
                                 while (true) {
@@ -381,6 +437,7 @@ internal fun TesseraImageContent(
                         .pointerInput(enablePagerIntegration, enableDismissGesture, contentScale, rotation) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                isGesturing = true
                                 var shouldConsume = !enablePagerIntegration
                                 var atEdge = false
                                 var totalPan = Offset.Zero
@@ -522,6 +579,7 @@ internal fun TesseraImageContent(
                                         }
                                     }
                                 } while (changes.fastAny { it.pressed })
+                                isGesturing = false
 
                                 // Double-tap detection: short gesture with no significant pan
                                 val gestureDuration = currentTimeMillis() - gestureStartTime
@@ -644,30 +702,52 @@ internal fun TesseraImageContent(
                             )
                         }
 
+                        val animDuration = tileAnimationDurationMs.coerceAtLeast(0).toLong()
+
+                        // Compute crossfade reference once (not per tile)
+                        val oldestCurrentTile = loadedTiles.values
+                            .filter { it.zoomLevel == currentZoomLevel }
+                            .minByOrNull { it.loadTime }
+
+                        // Previous zoom level tiles: crossfade out as current tiles load
                         loadedTiles
                             .filter { it.value.zoomLevel < currentZoomLevel }
                             .forEach { (tileKey, _) ->
                                 state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
                                     val tileRect = state.getTileRect(coordinate)
-                                    drawTileWithRect(
-                                        bitmap = bitmap,
-                                        tileRect = tileRect,
-                                        totalScale = totalScale,
-                                        baseOffset = baseOffset,
-                                        alpha = 1f
-                                    )
+                                    val fadeOutAlpha = if (oldestCurrentTile == null) {
+                                        // No current tiles yet: keep previous tiles visible
+                                        1f
+                                    } else if (animDuration > 0) {
+                                        val elapsed = currentTime - oldestCurrentTile.loadTime
+                                        val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
+                                        1f - easeOut(t)
+                                    } else {
+                                        // Animation disabled: hide previous tiles instantly
+                                        0f
+                                    }
+                                    if (fadeOutAlpha > 0.01f) {
+                                        drawTileWithRect(
+                                            bitmap = bitmap,
+                                            tileRect = tileRect,
+                                            totalScale = totalScale,
+                                            baseOffset = baseOffset,
+                                            alpha = fadeOutAlpha
+                                        )
+                                    }
                                 }
                             }
 
+                        // Current zoom level tiles: fade in with EaseOut
                         loadedTiles
                             .filter { it.value.zoomLevel == currentZoomLevel }
                             .forEach { (tileKey, info) ->
                                 state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
                                     val tileRect = state.getTileRect(coordinate)
-                                    val fadeInDuration = 100L
                                     val elapsedTime = currentTime - info.loadTime
-                                    val alpha = if (elapsedTime < fadeInDuration) {
-                                        (elapsedTime.toFloat() / fadeInDuration).coerceIn(0f, 1f)
+                                    val alpha = if (animDuration > 0 && elapsedTime < animDuration) {
+                                        val t = (elapsedTime.toFloat() / animDuration).coerceIn(0f, 1f)
+                                        easeOut(t)
                                     } else {
                                         1f
                                     }
@@ -749,6 +829,25 @@ internal fun resolveContentScale(
         imageAspect > viewAspect * 1.5f -> ContentScale.FitHeight // wide image
         else -> ContentScale.Fit
     }
+}
+
+/**
+ * At zoom level 0 the preview bitmap (~1024px) is already on screen. Loading tiles
+ * only pays off when the viewport shows a *partial* slice of the source image —
+ * i.e. FitWidth/FitHeight modes where the user will scroll to see more. If the
+ * viewport already covers the full image (or image info is missing), skip tiles.
+ *
+ * `viewport.viewWidth/viewHeight` are in source-image coordinates (see
+ * TesseraImageContent viewport construction): they represent the image area
+ * clipped to the viewport, so equaling `imageInfo.width/height` means full cover.
+ */
+internal fun shouldSkipZeroLevelTiles(
+    viewport: Viewport,
+    imageInfo: ImageInfo?
+): Boolean {
+    if (imageInfo == null) return true
+    return viewport.viewWidth >= imageInfo.width.toFloat() - 1f &&
+        viewport.viewHeight >= imageInfo.height.toFloat() - 1f
 }
 
 internal fun computeFitScale(
@@ -918,4 +1017,36 @@ private fun DrawScope.drawMinimap(
         size = Size(viewportW, viewportH),
         style = Stroke(width = borderWidth)
     )
+}
+
+/** EaseOut interpolation: fast start, slow finish. t in [0, 1]. */
+internal fun easeOut(t: Float): Float = 1f - (1f - t) * (1f - t)
+
+internal fun syncViewerState(
+    vs: TesseraViewerState,
+    scale: Float,
+    zoomLevel: Int,
+    tileCount: Int,
+    tesseraState: TesseraState?,
+    loadError: String?
+) {
+    if (tesseraState != null) {
+        vs.sync(
+            scale = scale,
+            zoomLevel = zoomLevel,
+            cachedTileCount = tileCount,
+            isLoading = tesseraState.isLoading,
+            imageInfo = tesseraState.imageInfo,
+            error = tesseraState.error ?: loadError
+        )
+    } else {
+        vs.sync(
+            scale = scale,
+            zoomLevel = zoomLevel,
+            cachedTileCount = tileCount,
+            isLoading = loadError == null,
+            imageInfo = null,
+            error = loadError
+        )
+    }
 }

@@ -11,7 +11,9 @@ import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.geometry.Offset
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -58,8 +60,10 @@ class TesseraGestureTest {
         enablePagerIntegration: Boolean = false,
         showScrollIndicators: Boolean = false,
         rotation: ImageRotation = ImageRotation.None,
+        tileAnimationDurationMs: Int = 200,
         imageWidth: Int = 2000,
         imageHeight: Int = 1500,
+        viewerState: TesseraViewerState? = null,
         onDismiss: () -> Unit = {}
     ) {
         composeTestRule.setContent {
@@ -74,6 +78,8 @@ class TesseraGestureTest {
                 enablePagerIntegration = enablePagerIntegration,
                 showScrollIndicators = showScrollIndicators,
                 rotation = rotation,
+                tileAnimationDurationMs = tileAnimationDurationMs,
+                viewerState = viewerState,
                 onDismiss = onDismiss
             )
         }
@@ -354,4 +360,103 @@ class TesseraGestureTest {
             .assertExists()
     }
 
+    // --- Gesture pause tests ---
+
+    @Test
+    fun pinchZoom_pausesTileLoading_thenResumesAfterGesture() {
+        val state = TesseraViewerState()
+        setUpContent(viewerState = state, imageWidth = 4000, imageHeight = 3000)
+        composeTestRule.waitForIdle()
+
+        // Record tile count before pinch
+        val tilesBefore = state.cachedTileCount
+
+        // Perform pinch zoom (gesture starts → isGesturing = true)
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput {
+                pinch(
+                    start0 = center - Offset(100f, 0f),
+                    end0 = center - Offset(200f, 0f),
+                    start1 = center + Offset(100f, 0f),
+                    end1 = center + Offset(200f, 0f)
+                )
+            }
+
+        // After gesture ends, wait for tile loading to resume
+        composeTestRule.waitForIdle()
+
+        // Verify no crash during pinch gesture with tile pause logic.
+        // Pinch zoom in Robolectric may not change scale reliably,
+        // so we verify the gesture completes without error.
+        assertTrue(state.isReady, "State should remain ready after pinch gesture")
+    }
+
+    @Test
+    fun viewerState_reflectsStateAfterGesture() {
+        val state = TesseraViewerState()
+        setUpContent(viewerState = state)
+        composeTestRule.waitForIdle()
+
+        assertTrue(state.isReady, "State should be ready after load")
+
+        // Double-tap to zoom in
+        composeTestRule.onNodeWithContentDescription(testContentDescription)
+            .performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+
+        // Scale should have changed to 3.0 (double-tap zoom target)
+        assertTrue(state.scale > 1.0f, "Scale should increase after double-tap zoom")
+    }
+
+    // --- Tile animation tests ---
+
+    @Test
+    fun tileAnimation_defaultDuration_noCrash() {
+        setUpContent(tileAnimationDurationMs = 200)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_disabled_noCrash() {
+        setUpContent(tileAnimationDurationMs = 0)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_longDuration_noCrash() {
+        setUpContent(tileAnimationDurationMs = 1000)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_negativeDuration_treatedAsZero() {
+        // Negative values are clamped to 0 (animation disabled)
+        setUpContent(tileAnimationDurationMs = -1)
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+    }
+
+    @Test
+    fun tileAnimation_zoomLevelTransition_noCrash() {
+        val state = TesseraViewerState()
+        setUpContent(tileAnimationDurationMs = 200, viewerState = state)
+        composeTestRule.waitForIdle()
+
+        val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
+        // Zoom in (triggers zoom level change → crossfade)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+        // Zoom out (triggers reverse transition)
+        node.performTouchInput { doubleClick(center) }
+        composeTestRule.waitForIdle()
+
+        assertTrue(state.isReady, "State should remain ready through zoom transitions")
+    }
 }

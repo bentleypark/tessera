@@ -1,5 +1,6 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,14 +15,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.CanvasBasedWindow
 import com.github.bentleypark.tessera.ContentScale
 import com.github.bentleypark.tessera.ImageRotation
 import com.github.bentleypark.tessera.TesseraImage
+import com.github.bentleypark.tessera.TesseraViewerState
+import com.github.bentleypark.tessera.rememberTesseraState
 
 data class TestImage(
     val name: String,
@@ -43,6 +51,7 @@ fun main() {
             var selectedIndex by remember { mutableStateOf(0) }
             var currentRotation by remember { mutableStateOf(ImageRotation.None) }
             val image = testImages[selectedIndex]
+            val viewerState = rememberTesseraState()
 
             Surface(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -58,7 +67,16 @@ fun main() {
                             contentScale = image.contentScale,
                             showScrollIndicators = true,
                             rotation = currentRotation,
+                            state = viewerState,
                             contentDescription = image.name
+                        )
+
+                        // State info overlay
+                        StateInfoOverlay(
+                            viewerState = viewerState,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 8.dp, bottom = 8.dp)
                         )
                     }
 
@@ -82,6 +100,53 @@ fun main() {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StateInfoOverlay(
+    viewerState: TesseraViewerState,
+    modifier: Modifier = Modifier
+) {
+    val info = viewerState.imageInfo
+    val statusText = when {
+        viewerState.isLoading -> "Loading..."
+        viewerState.error != null -> "Error"
+        viewerState.isReady -> "Ready"
+        else -> "-"
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Column {
+            Text(
+                text = statusText,
+                color = if (viewerState.isReady) Color.Green else Color.Yellow,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            if (info != null) {
+                Text(
+                    text = "${info.width}x${info.height}",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 10.sp
+                )
+            }
+            Text(
+                text = "Zoom: ${((viewerState.scale * 10).toInt() / 10f)}x  Level: ${viewerState.zoomLevel}",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 10.sp
+            )
+            Text(
+                text = "Tiles: ${viewerState.cachedTileCount}",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 10.sp
+            )
         }
     }
 }
