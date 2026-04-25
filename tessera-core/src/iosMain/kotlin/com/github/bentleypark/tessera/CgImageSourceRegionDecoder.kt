@@ -454,6 +454,7 @@ class CgImageSourceRegionDecoder(
         return when (val src = imageSource) {
             is ImageSource.PathSource -> {
                 val nsUrl = NSURL.fileURLWithPath(src.path)
+                @Suppress("UNCHECKED_CAST")
                 val cfUrl = CFBridgingRetain(nsUrl) as? platform.CoreFoundation.CFURLRef ?: run {
                     logWarning("CgRegionDecoder", "CFBridgingRetain failed for path: ${src.path}")
                     return null

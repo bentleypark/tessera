@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
@@ -29,6 +30,9 @@ class TesseraState(
     private val tileCache = mutableStateMapOf<String, Pair<ImageBitmap, TileCoordinate>>()
     private val tileCacheAccessOrder = mutableListOf<String>()
 
+    /** Tile metadata tracked separately from [tileCache] so renderers needn't subscribe to bitmap identity churn. */
+    internal val loadedTiles: SnapshotStateMap<String, TileLoadInfo> = mutableStateMapOf()
+
     var imageInfo by mutableStateOf<ImageInfo?>(null)
         private set
     var isLoading by mutableStateOf(true)
@@ -43,6 +47,10 @@ class TesseraState(
     /** Number of tiles currently held in the LRU cache. Tracked separately to avoid
      *  subscribing composition to the entire SnapshotStateMap. */
     var cachedTileCount by mutableIntStateOf(0)
+        private set
+
+    /** Bump to force the tile-load pipeline to re-emit even when viewport is unchanged. */
+    internal var reloadGeneration by mutableIntStateOf(0)
         private set
 
     /** Synchronous init for testing and simple usage. Must be called on the main thread. */
@@ -212,6 +220,19 @@ class TesseraState(
         decoder = null
         tileCache.clear()
         tileCacheAccessOrder.clear()
+        loadedTiles.clear()
         cachedTileCount = 0
+    }
+
+    /** Releases tiles but keeps the decoder, so resume can re-tile without re-opening the image. */
+    internal fun clearCacheForBackground() {
+        if (disposed) return
+        val releasedTiles = cachedTileCount
+        tileCache.clear()
+        tileCacheAccessOrder.clear()
+        loadedTiles.clear()
+        cachedTileCount = 0
+        reloadGeneration++
+        logWarning("TesseraPerf", "bgClear: released=$releasedTiles reloadGen=$reloadGeneration")
     }
 }
