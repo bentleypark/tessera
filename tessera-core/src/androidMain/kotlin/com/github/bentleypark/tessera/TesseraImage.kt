@@ -36,6 +36,7 @@ fun TesseraImage(
     rotation: ImageRotation = ImageRotation.None,
     tileAnimationDurationMs: Int = 200,
     state: TesseraViewerState? = null,
+    lifecycleAwareCache: Boolean = true,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -58,6 +59,7 @@ fun TesseraImage(
         rotation = rotation,
         tileAnimationDurationMs = tileAnimationDurationMs,
         viewerState = state,
+        lifecycleAwareCache = lifecycleAwareCache,
         onDismiss = onDismiss
     )
 }
@@ -83,6 +85,7 @@ fun TesseraImage(
     rotation: ImageRotation = ImageRotation.None,
     tileAnimationDurationMs: Int = 200,
     state: TesseraViewerState? = null,
+    lifecycleAwareCache: Boolean = true,
     onDismiss: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -106,6 +109,7 @@ fun TesseraImage(
         rotation = rotation,
         tileAnimationDurationMs = tileAnimationDurationMs,
         viewerState = state,
+        lifecycleAwareCache = lifecycleAwareCache,
         onDismiss = onDismiss
     )
 }
