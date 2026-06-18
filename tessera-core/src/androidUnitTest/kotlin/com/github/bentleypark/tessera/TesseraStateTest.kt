@@ -1,6 +1,7 @@
 package com.github.bentleypark.tessera
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import org.junit.runner.RunWith
@@ -266,6 +267,76 @@ class TesseraStateTest {
         assertNull(state.loadTile(TileCoordinate(0, 0, 0)), "loadTile should return null after dispose")
     }
 
+    @Test
+    fun dispose_clearsLoadedTilesMetadata() {
+        val (state, _) = createInitializedState()
+        state.loadedTiles["test-key"] = TileLoadInfo(loadTime = 100L, zoomLevel = 0)
+
+        state.dispose()
+
+        assertTrue(state.loadedTiles.isEmpty(), "loadedTiles metadata should be cleared after dispose")
+    }
+
+    // --- Lifecycle-Aware Cache (clearCacheForBackground / reloadGeneration) ---
+
+    @Test
+    fun clearCacheForBackground_clearsAllAndIncrementsGeneration() {
+        val (state, _) = createInitializedState()
+        val coord = TileCoordinate(0, 0, 0)
+        state.loadTile(coord)
+        state.loadedTiles[coord.toKey()] = TileLoadInfo(loadTime = 100L, zoomLevel = 0)
+        assertTrue(state.cachedTileCount > 0, "precondition: cache populated")
+        assertTrue(state.loadedTiles.isNotEmpty(), "precondition: metadata populated")
+
+        val generationBefore = state.reloadGeneration
+        state.clearCacheForBackground()
+
+        assertEquals(0, state.cachedTileCount, "cachedTileCount reset")
+        assertTrue(state.loadedTiles.isEmpty(), "loadedTiles metadata cleared")
+        assertNull(state.getCachedTile(coord), "tileCache cleared")
+        assertEquals(generationBefore + 1, state.reloadGeneration, "reloadGeneration bumped")
+    }
+
+    @Test
+    fun clearCacheForBackground_multipleCalls_incrementsGenerationMonotonically() {
+        val (state, _) = createInitializedState()
+        val initial = state.reloadGeneration
+
+        state.clearCacheForBackground()
+        state.clearCacheForBackground()
+        state.clearCacheForBackground()
+
+        assertEquals(initial + 3, state.reloadGeneration, "generation increments once per call")
+    }
+
+    @Test
+    fun clearCacheForBackground_afterDispose_isNoop() {
+        val (state, _) = createInitializedState()
+        val generationBefore = state.reloadGeneration
+
+        state.dispose()
+        state.clearCacheForBackground()
+
+        assertEquals(generationBefore, state.reloadGeneration, "clear after dispose must not bump generation")
+    }
+
+    @Test
+    fun reloadGeneration_incrementNotifiesSnapshotApplyObservers() {
+        // Regression guard: if reloadGeneration ever stops being a Compose State, snapshotFlow
+        // in TesseraImageContent will miss lifecycle-driven reloads. Apply observer fires only
+        // when a snapshot state is mutated.
+        val (state, _) = createInitializedState()
+        var applyCount = 0
+        val handle = Snapshot.registerApplyObserver { _, _ -> applyCount++ }
+        try {
+            state.clearCacheForBackground()
+            Snapshot.sendApplyNotifications()
+            assertTrue(applyCount > 0, "apply observer should fire after reloadGeneration bump")
+        } finally {
+            handle.dispose()
+        }
+    }
+
     // --- getTileRect ---
 
     // --- initializeDecoder / applyInitResult ---
@@ -278,7 +349,7 @@ class TesseraStateTest {
         val result = state.initializeDecoder()
 
         assertTrue(result is TesseraState.InitResult.Success)
-        assertEquals(1920, (result as TesseraState.InitResult.Success).info.width)
+        assertEquals(1920, result.info.width)
         assertEquals(1080, result.info.height)
         assertNotNull(result.preview)
     }
@@ -291,7 +362,7 @@ class TesseraStateTest {
         val result = state.initializeDecoder()
 
         assertTrue(result is TesseraState.InitResult.Error)
-        assertTrue((result as TesseraState.InitResult.Error).message.contains("Fake init failure"))
+        assertTrue(result.message.contains("Fake init failure"))
     }
 
     @Test

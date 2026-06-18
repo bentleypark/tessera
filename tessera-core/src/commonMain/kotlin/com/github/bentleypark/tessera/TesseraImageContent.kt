@@ -78,6 +78,7 @@ internal fun TesseraImageContent(
     rotation: ImageRotation = ImageRotation.None,
     tileAnimationDurationMs: Int = 200,
     viewerState: TesseraViewerState? = null,
+    lifecycleAwareCache: Boolean = true,
     onDismiss: () -> Unit = {}
 ) {
     val density = LocalDensity.current.density
@@ -86,7 +87,6 @@ internal fun TesseraImageContent(
     var loadError by remember { mutableStateOf<String?>(null) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var loadedTiles by remember { mutableStateOf<Map<String, TileLoadInfo>>(emptyMap()) }
     var currentZoomLevel by remember { mutableIntStateOf(-1) }
     var previousZoomLevel by remember { mutableIntStateOf(-1) }
     var coverageCompleteTime by remember { mutableLongStateOf(0L) }
@@ -121,7 +121,6 @@ internal fun TesseraImageContent(
             val previousState = tesseraState
             tesseraState = null
             loadError = null
-            loadedTiles = emptyMap()
             currentZoomLevel = -1
             previousZoomLevel = -1
             coverageCompleteTime = 0L
@@ -165,7 +164,7 @@ internal fun TesseraImageContent(
             val visibleCurrent = state.getVisibleTiles()
                 .filter { it.zoomLevel == currentZoomLevel }
             if (visibleCurrent.isEmpty()) return@derivedStateOf true
-            visibleCurrent.all { it.toKey() in loadedTiles.keys }
+            visibleCurrent.all { it.toKey() in state.loadedTiles.keys }
         }
     }
 
@@ -189,7 +188,7 @@ internal fun TesseraImageContent(
             if (previousZoomLevel >= 0 && coverageReady && coverageCompleteTime > 0L &&
                 currentTime - coverageCompleteTime >= animDur
             ) {
-                loadedTiles = loadedTiles.filterValues { it.zoomLevel != previousZoomLevel }
+                tesseraState?.loadedTiles?.let { evictZoomLevel(it, previousZoomLevel) }
                 previousZoomLevel = -1
             }
             delay(16)
@@ -199,11 +198,9 @@ internal fun TesseraImageContent(
     LaunchedEffect(tesseraState) {
         val state = tesseraState ?: return@LaunchedEffect
 
-        // Observe both viewport and gesture state. When isGesturing changes
-        // from true to false, snapshotFlow re-emits triggering tile load
-        // for the final viewport position.
-        snapshotFlow { state.viewport to isGesturing }
-            .collect { (_, gesturing) ->
+        // reloadGeneration forces re-emission after a lifecycle-driven clear with no viewport change.
+        snapshotFlow { Triple(state.viewport, isGesturing, state.reloadGeneration) }
+            .collect { (_, gesturing, _) ->
                 if (isDismissing) return@collect
                 if (state.isLoading || state.error != null) return@collect
                 if (gesturing) return@collect
@@ -228,7 +225,7 @@ internal fun TesseraImageContent(
                     return@collect
                 }
 
-                val tilesToLoad = visibleTiles.filter { it.toKey() !in loadedTiles.keys }
+                val tilesToLoad = visibleTiles.filter { it.toKey() !in state.loadedTiles.keys }
 
                 if (tilesToLoad.isEmpty()) {
                     return@collect
@@ -279,7 +276,7 @@ internal fun TesseraImageContent(
                         if (bitmap != null) {
                             state.cacheTile(coordinate, bitmap)
                             val loadTime = currentTimeMillis()
-                            loadedTiles = loadedTiles + (coordinate.toKey() to TileLoadInfo(loadTime, coordinate.zoomLevel))
+                            state.loadedTiles[coordinate.toKey()] = TileLoadInfo(loadTime, coordinate.zoomLevel)
                             loadedCount++
                         } else {
                             failCount++
@@ -305,6 +302,43 @@ internal fun TesseraImageContent(
         onDispose {
             tesseraState?.dispose()
         }
+    }
+
+    val lifecycleState = tesseraState
+    if (lifecycleAwareCache && lifecycleState != null) {
+        var backgroundAt by remember(lifecycleState) { mutableLongStateOf(0L) }
+        AppLifecycleEffect(
+            onStop = {
+                backgroundAt = currentTimeMillis()
+                logWarning("TesseraPerf", "bgStop: tiles=${lifecycleState.cachedTileCount}")
+            },
+            onStart = {
+                // Ignore the synthetic start observers deliver at registration.
+                val stopAt = backgroundAt
+                if (stopAt != 0L) {
+                    val now = currentTimeMillis()
+                    val elapsed = now - stopAt
+                    if (shouldClearAfterBackground(stopAt, now)) {
+                        logWarning(
+                            "TesseraPerf",
+                            "bgStart: elapsed=${elapsed}ms CLEAR (threshold=${BACKGROUND_DEBOUNCE_MS}ms)"
+                        )
+                        lifecycleState.clearCacheForBackground()
+                        // Reset #51's zoom-transition state so background retention
+                        // re-anchors cleanly when tiles reload after the clear (the
+                        // previous-level tiles it tracked are now gone).
+                        previousZoomLevel = -1
+                        coverageCompleteTime = 0L
+                    } else {
+                        logWarning(
+                            "TesseraPerf",
+                            "bgStart: elapsed=${elapsed}ms KEEP tiles=${lifecycleState.cachedTileCount}"
+                        )
+                    }
+                    backgroundAt = 0L
+                }
+            },
+        )
     }
 
     // Sync internal state to public TesseraViewerState after each successful composition.
@@ -746,6 +780,9 @@ internal fun TesseraImageContent(
 
                         val animDuration = tileAnimationDurationMs.coerceAtLeast(0).toLong()
 
+                        // Snapshot once so per-entry reads don't widen the draw-scope subscription.
+                        val loadedSnapshot = state.loadedTiles.toMap()
+
                         // Background = the level the user just left. Held at full
                         // opacity until every visible current-level tile is loaded
                         // (coverageReady), then EaseOut fades over animDuration.
@@ -757,7 +794,7 @@ internal fun TesseraImageContent(
                         )
 
                         if (previousZoomLevel >= 0 && backgroundAlpha > 0.01f) {
-                            loadedTiles
+                            loadedSnapshot
                                 .filter { it.value.zoomLevel == previousZoomLevel }
                                 .forEach { (tileKey, _) ->
                                     state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
@@ -774,7 +811,7 @@ internal fun TesseraImageContent(
                         }
 
                         // Current zoom level tiles: fade in with EaseOut
-                        loadedTiles
+                        loadedSnapshot
                             .filter { it.value.zoomLevel == currentZoomLevel }
                             .forEach { (tileKey, info) ->
                                 state.getCachedTileByKey(tileKey)?.let { (bitmap, coordinate) ->
@@ -1080,6 +1117,18 @@ internal fun decideBackgroundAlpha(
     val elapsed = currentTime - coverageCompleteTime
     val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
     return 1f - easeOut(t)
+}
+
+/**
+ * Remove every loaded-tile metadata entry belonging to [zoomLevel] from [loaded].
+ * Used to drop the previous zoom level once its background crossfade completes; the
+ * bitmaps themselves stay in TesseraState's LRU cache and are reclaimed there.
+ * Keys are snapshotted before removal so this is safe on a SnapshotStateMap.
+ */
+internal fun evictZoomLevel(loaded: MutableMap<String, TileLoadInfo>, zoomLevel: Int) {
+    loaded.keys.toList()
+        .filter { loaded[it]?.zoomLevel == zoomLevel }
+        .forEach { loaded.remove(it) }
 }
 
 internal fun syncViewerState(

@@ -316,7 +316,23 @@ Three distinct decoding tiers exist across platforms:
 | `rotation` | ImageRotation | `ImageRotation.None` | User-controlled rotation (None, Rotate90, Rotate180, Rotate270) |
 | `tileAnimationDurationMs` | Int | `200` | Tile fade-in/crossfade duration in ms (0 disables animation) |
 | `state` | TesseraViewerState? | `null` | Observable viewer state (see below) |
+| `lifecycleAwareCache` | Boolean | platform-specific | Release tile cache when the app is backgrounded for more than 5 seconds (see below) |
 | `onDismiss` | () -> Unit | `{}` | Dismiss callback |
+
+#### Lifecycle-Aware Cache
+
+When enabled, Tessera releases its in-memory tile cache (up to ~150 tiles at 256px, 10+ MB) when the hosting app is moved to the background for longer than **5 seconds**, and re-decodes tiles on resume. Short transitions (notification peek, quick app switch) are ignored to avoid a re-decode storm on the common case.
+
+Per-platform defaults:
+
+| Platform | Default | Signal |
+|----------|---------|--------|
+| Android | `true` | `Application.ActivityLifecycleCallbacks` (host-activity set, onStarted/onStopped) |
+| iOS | `true` | `UIApplicationDidEnterBackgroundNotification` / `WillEnterForeground` |
+| Desktop | `false` | AWT `windowIconified` / `windowDeiconified` |
+| Web (Wasm) | `false` | `document.visibilitychange` (`document.hidden`) |
+
+Desktop and Web default to `false` because minimizing/tab-switching is common and re-decoding has a visible cost on those platforms. Pass `lifecycleAwareCache = true` explicitly to opt in.
 
 ### State Observation (rememberTesseraState)
 
