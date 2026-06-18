@@ -20,9 +20,9 @@ internal fun remapRectForOrientation(
     val rotated = when (rotationDegrees) {
         90 -> TileRect(
             left = rect.top,
-            top = rawWidth - rect.right,
+            top = rawHeight - rect.right,
             right = rect.bottom,
-            bottom = rawWidth - rect.left
+            bottom = rawHeight - rect.left
         )
         180 -> TileRect(
             left = rawWidth - rect.right,
@@ -31,9 +31,9 @@ internal fun remapRectForOrientation(
             bottom = rawHeight - rect.top
         )
         270 -> TileRect(
-            left = rawHeight - rect.bottom,
+            left = rawWidth - rect.bottom,
             top = rect.left,
-            right = rawHeight - rect.top,
+            right = rawWidth - rect.top,
             bottom = rect.right
         )
         else -> rect
@@ -41,7 +41,7 @@ internal fun remapRectForOrientation(
 
     if (!isMirrored) return rotated
 
-    // Mirror horizontally in raw coordinate space
-    val w = if (rotationDegrees == 90 || rotationDegrees == 270) rawHeight else rawWidth
-    return TileRect(w - rotated.right, rotated.top, w - rotated.left, rotated.bottom)
+    // Mirror horizontally in raw coordinate space. The remapped rect already lives
+    // in raw pixel space, whose X axis always spans rawWidth regardless of rotation.
+    return TileRect(rawWidth - rotated.right, rotated.top, rawWidth - rotated.left, rotated.bottom)
 }

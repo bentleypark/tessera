@@ -83,8 +83,13 @@ class TesseraGestureTest {
                 onDismiss = onDismiss
             )
         }
-        // Wait for image loading to complete
+        // Wait for image loading to complete. waitForIdle() only settles Compose
+        // recomposition, not the async decode on ioDispatcher (Dispatchers.IO), so
+        // poll the observable state until the load actually finishes.
         composeTestRule.waitForIdle()
+        if (viewerState != null) {
+            composeTestRule.waitUntil(timeoutMillis = 10_000) { viewerState.isReady }
+        }
     }
 
     // --- Rendering tests ---
@@ -366,7 +371,6 @@ class TesseraGestureTest {
     fun pinchZoom_pausesTileLoading_thenResumesAfterGesture() {
         val state = TesseraViewerState()
         setUpContent(viewerState = state, imageWidth = 4000, imageHeight = 3000)
-        composeTestRule.waitForIdle()
 
         // Record tile count before pinch
         val tilesBefore = state.cachedTileCount
@@ -395,7 +399,6 @@ class TesseraGestureTest {
     fun viewerState_reflectsStateAfterGesture() {
         val state = TesseraViewerState()
         setUpContent(viewerState = state)
-        composeTestRule.waitForIdle()
 
         assertTrue(state.isReady, "State should be ready after load")
 
@@ -447,7 +450,6 @@ class TesseraGestureTest {
     fun tileAnimation_zoomLevelTransition_noCrash() {
         val state = TesseraViewerState()
         setUpContent(tileAnimationDurationMs = 200, viewerState = state)
-        composeTestRule.waitForIdle()
 
         val node = composeTestRule.onNodeWithContentDescription(testContentDescription)
         // Zoom in (triggers zoom level change → crossfade)
