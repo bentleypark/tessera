@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-06-18
+
+### Added
+- **Background tile retention during zoom transitions** (#51)
+  - Previous zoom level tiles are kept as a background and held at full opacity until the current level is fully covered, then EaseOut cross-fade out — removes flicker during zoom
+
+### Changed
+- **Android tile decoding performance** (#50, #42, #43, #44)
+  - Dynamic tile size based on display density: `(256 * density).coerceIn(256, 512)` — up to 75% fewer tiles
+  - RGB_565 for JPEG tile decoding — 50% memory per tile (ARGB_8888 retained for PNG/alpha)
+  - `BitmapRegionDecoder` pool (2 instances) with safe lifecycle
+  - Chunked parallel tile decoding via `supervisorScope` + `async`
+  - Zoom level 0 tiles skipped when the viewport covers the full image
+
+### Fixed
+- **Tile/preview misalignment for non-square images with EXIF orientation 90°/270°** (#54, #55)
+  - `remapRectForOrientation` swapped `rawWidth`/`rawHeight` in the 90°/270° branches, shifting decoded tile source rects by `|rawWidth - rawHeight|` (e.g. 1008px on a 4032×3024 photo) or out of the raw image bounds, tearing tiles against the correctly-rotated preview
+  - Also corrected the mirror axis (raw X always spans `rawWidth`) for orientation 5/7
+  - Affects Android, iOS, and Desktop (shared `commonMain` logic)
+
+### Internal
+- Track `kotlin-js-store` and ignore the `.kotlin` compiler cache (#53)
+- Stabilized a flaky gesture test by waiting for async load readiness instead of `waitForIdle()` alone
+
 ## [1.0.0] - 2026-04-04
 
 ### Added
@@ -112,4 +136,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LRU cache: loadTile() now correctly tracks access order for cached tiles
 - SHA-256 for iOS temp file names (was hashCode, collision risk)
 
+[1.1.0]: https://github.com/bentleypark/tessera/releases/tag/v1.1.0
 [1.0.0]: https://github.com/bentleypark/tessera/releases/tag/v1.0.0
