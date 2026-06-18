@@ -45,13 +45,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -252,40 +253,56 @@ internal fun TesseraImageContent(
                 var loadedCount = 0
                 var failCount = 0
 
-                // Decode tiles in parallel chunks matching decoder pool size.
-                // Each chunk is decoded concurrently, then cached immediately
-                // so tiles appear progressively instead of all at once.
-                val chunkSize = 2
-                sortedTiles.chunked(chunkSize).forEach { chunk ->
-                    ensureActive()
-                    if (isGesturing) return@collect
-
-                    val results = supervisorScope {
-                        chunk.map { coordinate ->
-                            async(ioDispatcher) {
-                                try {
-                                    coordinate to state.decodeTile(coordinate)
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    logError("TesseraImage", "tile decode failed: ${coordinate.toKey()}", e)
-                                    coordinate to null
-                                }
+                // Continuous decode pipeline with a bounded read-ahead window. Up to
+                // decodeParallelism tiles decode at once (gated by the semaphore); the
+                // window caps how far the decoders run ahead of the consumer so that
+                // decoded-but-undrawn bitmaps can't pile up toward the whole batch when
+                // one tile is slow. Tiles are consumed nearest-first and cache writes
+                // stay on the collect (main) context. Decoders never idle between tiles.
+                val decodeParallelism = 2
+                val readAheadWindow = decodeParallelism * 2
+                coroutineScope {
+                    val gate = Semaphore(decodeParallelism)
+                    fun decodeAsync(coordinate: TileCoordinate) = async(ioDispatcher) {
+                        ensureActive()
+                        gate.withPermit {
+                            val bitmap = try {
+                                state.decodeTile(coordinate)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                logError("TesseraImage", "tile decode failed: ${coordinate.toKey()}", e)
+                                null
                             }
-                        }.awaitAll()
+                            coordinate to bitmap
+                        }
                     }
 
-                    for ((coordinate, bitmap) in results) {
+                    val inFlight = ArrayDeque<Deferred<Pair<TileCoordinate, ImageBitmap?>>>()
+                    var nextIndex = 0
+                    while (nextIndex < sortedTiles.size && inFlight.size < readAheadWindow) {
+                        inFlight.add(decodeAsync(sortedTiles[nextIndex]))
+                        nextIndex++
+                    }
+
+                    while (inFlight.isNotEmpty()) {
+                        if (isGesturing) {
+                            inFlight.forEach { it.cancel() }
+                            break
+                        }
+                        val (coordinate, bitmap) = inFlight.removeFirst().await()
                         if (bitmap != null) {
                             state.cacheTile(coordinate, bitmap)
-                            val loadTime = currentTimeMillis()
-                            loadedTiles = loadedTiles + (coordinate.toKey() to TileLoadInfo(loadTime, coordinate.zoomLevel))
+                            loadedTiles = loadedTiles + (coordinate.toKey() to TileLoadInfo(currentTimeMillis(), coordinate.zoomLevel))
                             loadedCount++
                         } else {
                             failCount++
                         }
+                        if (nextIndex < sortedTiles.size) {
+                            inFlight.add(decodeAsync(sortedTiles[nextIndex]))
+                            nextIndex++
+                        }
                     }
-                    yield()
                 }
 
                 if (failCount > 0 && loadedCount == 0) {
