@@ -35,7 +35,7 @@ fun TesseraImage(
     rotation: ImageRotation = ImageRotation.None,
     tileAnimationDurationMs: Int = 200,
     state: TesseraViewerState? = null,
-    lifecycleAwareCache: Boolean = false,
+    lifecycleAwareCache: Boolean = true,
     onDismiss: () -> Unit = {}
 ) {
     val resolvedLoader = remember(imageLoader) { imageLoader ?: DesktopImageLoader() }

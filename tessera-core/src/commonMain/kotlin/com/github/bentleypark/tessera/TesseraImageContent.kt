@@ -78,7 +78,7 @@ internal fun TesseraImageContent(
     rotation: ImageRotation = ImageRotation.None,
     tileAnimationDurationMs: Int = 200,
     viewerState: TesseraViewerState? = null,
-    lifecycleAwareCache: Boolean = false,
+    lifecycleAwareCache: Boolean = true,
     onDismiss: () -> Unit = {}
 ) {
     val density = LocalDensity.current.density
@@ -188,12 +188,7 @@ internal fun TesseraImageContent(
             if (previousZoomLevel >= 0 && coverageReady && coverageCompleteTime > 0L &&
                 currentTime - coverageCompleteTime >= animDur
             ) {
-                val tiles = tesseraState?.loadedTiles
-                if (tiles != null) {
-                    tiles.keys.toList()
-                        .filter { tiles[it]?.zoomLevel == previousZoomLevel }
-                        .forEach { tiles.remove(it) }
-                }
+                tesseraState?.loadedTiles?.let { evictZoomLevel(it, previousZoomLevel) }
                 previousZoomLevel = -1
             }
             delay(16)
@@ -329,6 +324,11 @@ internal fun TesseraImageContent(
                             "bgStart: elapsed=${elapsed}ms CLEAR (threshold=${BACKGROUND_DEBOUNCE_MS}ms)"
                         )
                         lifecycleState.clearCacheForBackground()
+                        // Reset #51's zoom-transition state so background retention
+                        // re-anchors cleanly when tiles reload after the clear (the
+                        // previous-level tiles it tracked are now gone).
+                        previousZoomLevel = -1
+                        coverageCompleteTime = 0L
                     } else {
                         logWarning(
                             "TesseraPerf",
@@ -1117,6 +1117,18 @@ internal fun decideBackgroundAlpha(
     val elapsed = currentTime - coverageCompleteTime
     val t = (elapsed.toFloat() / animDuration).coerceIn(0f, 1f)
     return 1f - easeOut(t)
+}
+
+/**
+ * Remove every loaded-tile metadata entry belonging to [zoomLevel] from [loaded].
+ * Used to drop the previous zoom level once its background crossfade completes; the
+ * bitmaps themselves stay in TesseraState's LRU cache and are reclaimed there.
+ * Keys are snapshotted before removal so this is safe on a SnapshotStateMap.
+ */
+internal fun evictZoomLevel(loaded: MutableMap<String, TileLoadInfo>, zoomLevel: Int) {
+    loaded.keys.toList()
+        .filter { loaded[it]?.zoomLevel == zoomLevel }
+        .forEach { loaded.remove(it) }
 }
 
 internal fun syncViewerState(
